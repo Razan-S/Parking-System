@@ -1,11 +1,13 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QFrame,
                             QMessageBox, QSplitter, QScrollArea)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from src.gui.components import VideoFrameWidget, DarkButton, CoordinateCard
 import cv2 as cv
 
 class RoadSegmenterGUI(QMainWindow):
+    coordinates_submitted = pyqtSignal(list)
+
     def __init__(self, video_path):
         super().__init__()
         self.video_path = video_path
@@ -13,6 +15,8 @@ class RoadSegmenterGUI(QMainWindow):
         self.frame_counter = 1
         self.saved_frames = []
         self.cap = None
+        self.submitted_coordinates = None
+
         self.init_ui()
         self.load_single_frame()
         
@@ -76,7 +80,6 @@ class RoadSegmenterGUI(QMainWindow):
             if ret and frame is not None:
                 self.video_widget.set_frame(frame)
                 self.clear_btn.setEnabled(True)
-                print("Successfully loaded first frame")
             else:
                 print("Could not read first frame")
             
@@ -248,7 +251,22 @@ class RoadSegmenterGUI(QMainWindow):
         for frame in self.saved_frames:
             result_text += f"Frame {frame['id']}: {len(frame['coordinates'])} points\n"
         
-        print("Submitted frames:", self.saved_frames)
+        msg = QMessageBox()
+        msg.setWindowTitle("Frames Submitted")
+        msg.setText("✅ All frames submitted successfully!")
+        msg.setDetailedText(result_text)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
+        
+        # Store coordinates for later retrieval
+        self.submitted_coordinates = self.saved_frames.copy()
+        
+        # Method 1: Emit signal
+        self.coordinates_submitted.emit(self.saved_frames)
+
+    def get_submitted_coordinates(self):
+        """Get the last submitted coordinates"""
+        return self.submitted_coordinates
     
     def closeEvent(self, event):
         if self.cap:

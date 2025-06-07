@@ -15,7 +15,11 @@ def main():
     window = RoadSegmenterGUI(video_path="video/south_1-out.avi")
     window.show()
     
-    sys.exit(app.exec())
+    app.exec()
+    
+    # After the application is closed, you can retrieve submitted coordinates
+    coordinates = window.get_submitted_coordinates()
+    print("Submitted coordinates:", coordinates)
 
 if __name__ == "__main__":
     main()
