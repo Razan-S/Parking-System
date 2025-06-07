@@ -1,1 +1,1 @@
-print("Initializing GUI module...")
+print("Hi world from src/gui/__init__.py")
