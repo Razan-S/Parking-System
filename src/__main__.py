@@ -18,8 +18,9 @@ def main():
     app.exec()
     
     # After the application is closed, you can retrieve submitted coordinates
-    coordinates = window.get_submitted_coordinates()
-    print("Submitted coordinates:", coordinates)
+    frame, coordinates = window.get_submitted_coordinates()
+    print(frame.shape) # height, width, channels (1080, 1920, 3)
+    print(coordinates) # example: [{'id': 1, 'coordinates': [(834, 681), (750, 442), (1081, 455)]}]
 
 if __name__ == "__main__":
     main()

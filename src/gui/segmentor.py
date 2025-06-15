@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                             QMessageBox, QSplitter, QScrollArea)
 from PyQt6.QtCore import Qt, pyqtSignal
 from src.gui.components import VideoFrameWidget, DarkButton, CoordinateCard
+from ..utils import is_valid_polygon
 import cv2 as cv
 
 class RoadSegmenterGUI(QMainWindow):
@@ -115,6 +116,10 @@ class RoadSegmenterGUI(QMainWindow):
             }
         """)
         layout.addWidget(title)
+
+        self.back_btn = DarkButton("🔙 Main page")
+        self.back_btn.setEnabled(True)
+        layout.addWidget(self.back_btn)
         
         # Clear coordinates button
         self.clear_btn = DarkButton("🗑️ Clear Points")
@@ -195,8 +200,16 @@ class RoadSegmenterGUI(QMainWindow):
     
     def add_frame(self):
         if not self.current_coordinates:
+            QMessageBox.warning(self, "No Coordinates", "Please add some coordinates before saving the frame.")
             return
         
+        is_valid, _, message = is_valid_polygon(self.current_coordinates, min_points=3, min_area=10)
+        
+        if not is_valid:
+            QMessageBox.warning(self, "Invalid Polygon", message)
+            self.clear_coordinates()
+            return
+
         # Save current frame
         frame_data = {
             'id': self.frame_counter,
@@ -266,7 +279,7 @@ class RoadSegmenterGUI(QMainWindow):
 
     def get_submitted_coordinates(self):
         """Get the last submitted coordinates"""
-        return self.submitted_coordinates
+        return self.video_widget.frame, self.submitted_coordinates
     
     def closeEvent(self, event):
         if self.cap:

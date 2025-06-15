@@ -2,7 +2,6 @@ from PyQt6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QFrame, QHBoxLayou
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap, QImage
 import cv2 as cv
-import numpy as np
 
 class VideoFrameWidget(QLabel):
     coordinates_updated = pyqtSignal(list)
@@ -14,6 +13,7 @@ class VideoFrameWidget(QLabel):
         self.scale_factor = 1.0
         self.offset_x = 0
         self.offset_y = 0
+        self.show_connections = True  # Flag to toggle line display
         self.setMinimumSize(800, 600)
         self.setStyleSheet("""
             QLabel {
@@ -33,35 +33,63 @@ class VideoFrameWidget(QLabel):
     def update_display(self):
         if self.frame is None:
             return
-        
+
         # Create display frame
         display_frame = self.frame.copy()
-        
-        # Draw coordinates
+
+        # Draw filled polygon
+        if len(self.coordinates) >= 3:
+            import numpy as np
+            
+            # Create semi-transparent overlay
+            overlay = display_frame.copy()
+            contour = np.array([self.coordinates], dtype=np.int32)
+            cv.drawContours(overlay, contour, -1, (0, 255, 0), thickness=cv.FILLED)
+            
+            # Blend with original (30% transparency)
+            cv.addWeighted(overlay, 0.3, display_frame, 0.7, 0, display_frame)
+            
+            # Draw polygon border
+            cv.drawContours(display_frame, contour, -1, (0, 200, 0), thickness=2)
+
+        # Draw connecting lines
+        if self.show_connections and len(self.coordinates) > 1:
+            for i in range(len(self.coordinates) - 1):
+                pt1 = (int(self.coordinates[i][0]), int(self.coordinates[i][1]))
+                pt2 = (int(self.coordinates[i + 1][0]), int(self.coordinates[i + 1][1]))
+                cv.line(display_frame, pt1, pt2, (255, 0, 0), 2)
+            
+            # Close polygon
+            if len(self.coordinates) >= 3:
+                pt1 = (int(self.coordinates[-1][0]), int(self.coordinates[-1][1]))
+                pt2 = (int(self.coordinates[0][0]), int(self.coordinates[0][1]))
+                cv.line(display_frame, pt1, pt2, (255, 0, 0), 2)
+
+        # Draw points
         for i, (x, y) in enumerate(self.coordinates):
-            cv.circle(display_frame, (int(x), int(y)), 8, (0, 255, 0), -1)
-            cv.putText(display_frame, str(i+1), (int(x+10), int(y-10)), 
-                      cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
+            center = (int(x), int(y))
+            cv.circle(display_frame, center, 8, (0, 255, 0), -1)  # Green filled circle
+            cv.circle(display_frame, center, 8, (255, 255, 255), 2)  # White border
+
         # Convert to Qt format
         height, width, channel = display_frame.shape
         bytes_per_line = 3 * width
         q_image = QImage(display_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
-        
+
         # Scale to fit widget
         widget_size = self.size()
         pixmap = QPixmap.fromImage(q_image)
         scaled_pixmap = pixmap.scaled(widget_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-        
+
         # Calculate scale factor and offset for coordinate mapping
         self.scale_factor = min(widget_size.width() / width, widget_size.height() / height)
         scaled_width = int(width * self.scale_factor)
         scaled_height = int(height * self.scale_factor)
         self.offset_x = (widget_size.width() - scaled_width) // 2
         self.offset_y = (widget_size.height() - scaled_height) // 2
-        
+
         self.setPixmap(scaled_pixmap)
-    
+
     def mousePressEvent(self, event):
         if self.frame is None:
             return
