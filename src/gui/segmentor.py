@@ -8,6 +8,7 @@ import cv2 as cv
 
 class RoadSegmenterGUI(QMainWindow):
     coordinates_submitted = pyqtSignal(list)
+    switch_to_dashboard_page = pyqtSignal(str)
 
     def __init__(self, video_path):
         super().__init__()
@@ -23,7 +24,7 @@ class RoadSegmenterGUI(QMainWindow):
         
     def init_ui(self):
         self.setWindowTitle("Road Segmenter")
-        self.setGeometry(100, 100, 1400, 800)
+        self.setGeometry(0, 0, 1400, 800)
         
         # Dark theme
         self.setStyleSheet("""
@@ -113,12 +114,12 @@ class RoadSegmenterGUI(QMainWindow):
                 font-weight: bold;
                 color: #0d7377;
                 padding: 10px 0;
-            }
-        """)
+            }        """)
         layout.addWidget(title)
 
         self.back_btn = DarkButton("🔙 Main page")
         self.back_btn.setEnabled(True)
+        self.back_btn.clicked.connect(self.go_back_to_dashboard)
         layout.addWidget(self.back_btn)
         
         # Clear coordinates button
@@ -276,6 +277,11 @@ class RoadSegmenterGUI(QMainWindow):
         
         # Method 1: Emit signal
         self.coordinates_submitted.emit(self.saved_frames)
+        self.switch_to_dashboard_page.emit("Road Segmenter")
+
+    def go_back_to_dashboard(self):
+        """Handle back button click to return to dashboard"""
+        self.switch_to_dashboard_page.emit("dashboard")
 
     def get_submitted_coordinates(self):
         """Get the last submitted coordinates"""
