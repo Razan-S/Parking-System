@@ -17,7 +17,7 @@ class Window(QMainWindow):
         if not cameras_from_config:
             QMessageBox.warning(self, "No cameras available.", "Please check your camera configuration.")
             self.camera_names = ["No Cameras Available"]
-            self.camera_statuses = ["offline"]
+            self.camera_statuses = ["not_working"]
         else:
             self.camera_names = self.config_manager.get_camera_names()
             self.camera_statuses = self.config_manager.get_camera_statuses()
@@ -71,9 +71,10 @@ class Window(QMainWindow):
         """Create the content area where different pages can be displayed"""
         # Create pages
         self.dashboard = Dashboard(cameras_name=self.camera_names, camera_statuses=self.camera_statuses)
-        self.config_page = RoadSegmenterGUI(video_path="video/cctv-test.MP4")
+        self.config_page = RoadSegmenterGUI()
 
-        self.dashboard.switch_to_config_page.connect(self.show_config_page)
+        self.dashboard.switch_to_config_page.connect(lambda cam: self.show_config_page(cam_name=cam))
+        self.config_page.coordinates_submitted.connect(lambda coordinates, cam_id: self.check_submitted_coordinates(coordinates=coordinates, camera_id=cam_id))
         self.config_page.switch_to_dashboard_page.connect(self.show_dashboard)
         
         # Set up config page (example content)
@@ -94,11 +95,30 @@ class Window(QMainWindow):
         
         # Add content area to main layout
         main_layout.addWidget(content_container)
-    
+
+    def check_submitted_coordinates(self, coordinates, camera_id):
+        """Check if coordinates have been submitted in the config page"""
+        if coordinates and camera_id:
+            print("Coordinates submitted: ", coordinates)
+            response = self.config_manager.update_detection_zone(camera_id=camera_id, detection_zones=coordinates)
+            if response:
+                QMessageBox.information(self, "Success", "Detection zone updated successfully.")
+                self.show_dashboard() 
+            else:
+                QMessageBox.warning(self, "Error", "Failed to update detection zone.")  
+        else:
+            QMessageBox.warning(self,title="No coordinates submitted", text="Please submit coordinates before switching to the dashboard.")
+
     def show_dashboard(self):
         """Switch to dashboard page"""
         self.stack_widget.setCurrentWidget(self.dashboard)
     
-    def show_config_page(self):
+    def show_config_page(self, cam_name=None):
         """Switch to config page"""
+        if cam_name is None:
+            QMessageBox.warning(self, "No camera selected", "Please select a camera to configure.")
+            return
+    
+        camera = self.config_manager.get_camera_by_name(cam_name)
+        self.config_page.set_properties(camera['video_source'], camera['camera_id'])
         self.stack_widget.setCurrentWidget(self.config_page)

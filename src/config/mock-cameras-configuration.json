@@ -11,7 +11,7 @@
       "camera_status": "working",
       "parking_status": "available",
       "image_path": "image/mock-cctv-1.jpg",
-      "video_source": "rtsp://192.168.1.101:554/stream1",
+      "video_source": "video/cctv-test-1.mp4",
       "resolution": {
         "width": 1920,
         "height": 1080
@@ -21,18 +21,7 @@
         "latitude": 13.7563,
         "longitude": 100.5018
       },
-      "detection_zones": [
-        {
-          "zone_id": "ZONE_001",
-          "zone_name": "Parking Area A",
-          "polygon_points": [
-            {"x": 100, "y": 150},
-            {"x": 400, "y": 150},
-            {"x": 450, "y": 300},
-            {"x": 50, "y": 300}
-          ]
-        }
-      ],
+      "detection_zones": [],
       "last_maintenance": "2024-12-15T10:30:00Z",
       "installation_date": "2024-01-15T09:00:00Z"
     },
@@ -47,7 +36,7 @@
       "camera_status": "working",
       "parking_status": "occupied",
       "image_path": "image/mock-cctv-2.jpg",
-      "video_source": "rtsp://192.168.1.102:554/stream1",
+      "video_source": "video/cctv-test.mp4",
       "resolution": {
         "width": 1920,
         "height": 1080
@@ -55,27 +44,51 @@
       "fps": 25,
       "coordinates": {
         "latitude": 13.7565,
-        "longitude": 100.5020
+        "longitude": 100.502
       },
       "detection_zones": [
         {
           "zone_id": "ZONE_002",
           "zone_name": "Parking Area B",
           "polygon_points": [
-            {"x": 120, "y": 180},
-            {"x": 380, "y": 180},
-            {"x": 420, "y": 320},
-            {"x": 80, "y": 320}
+            {
+              "x": 120,
+              "y": 180
+            },
+            {
+              "x": 380,
+              "y": 180
+            },
+            {
+              "x": 420,
+              "y": 320
+            },
+            {
+              "x": 80,
+              "y": 320
+            }
           ]
         },
         {
           "zone_id": "ZONE_003",
           "zone_name": "Parking Area C",
           "polygon_points": [
-            {"x": 450, "y": 180},
-            {"x": 750, "y": 180},
-            {"x": 800, "y": 320},
-            {"x": 400, "y": 320}
+            {
+              "x": 450,
+              "y": 180
+            },
+            {
+              "x": 750,
+              "y": 180
+            },
+            {
+              "x": 800,
+              "y": 320
+            },
+            {
+              "x": 400,
+              "y": 320
+            }
           ]
         }
       ],
@@ -93,7 +106,7 @@
       "camera_status": "error",
       "parking_status": "unknown",
       "image_path": "image/mock-cctv-3.jpg",
-      "video_source": "rtsp://192.168.1.103:554/stream1",
+      "video_source": "video/cctv-real-test.avi",
       "resolution": {
         "width": 1280,
         "height": 720
@@ -108,10 +121,22 @@
           "zone_id": "ZONE_004",
           "zone_name": "Emergency Area",
           "polygon_points": [
-            {"x": 200, "y": 100},
-            {"x": 500, "y": 100},
-            {"x": 550, "y": 250},
-            {"x": 150, "y": 250}
+            {
+              "x": 200,
+              "y": 100
+            },
+            {
+              "x": 500,
+              "y": 100
+            },
+            {
+              "x": 550,
+              "y": 250
+            },
+            {
+              "x": 150,
+              "y": 250
+            }
           ]
         }
       ],
@@ -129,30 +154,61 @@
       "camera_status": "not_working",
       "parking_status": "available",
       "image_path": "image/mock-cctv-4.jpg",
-      "video_source": "rtsp://192.168.1.104:554/stream1",
+      "video_source": "video/cctv-real-test-1.avi",
       "resolution": {
         "width": 1920,
         "height": 1080
       },
       "fps": 30,
       "coordinates": {
-        "latitude": 13.7560,
+        "latitude": 13.756,
         "longitude": 100.5015
       },
       "detection_zones": [
         {
-          "zone_id": "ZONE_005",
-          "zone_name": "Back Gate Area",
+          "zone_id": "zone_001",
+          "zone_name": "Detection Zone 1",
           "polygon_points": [
-            {"x": 150, "y": 200},
-            {"x": 450, "y": 200},
-            {"x": 500, "y": 350},
-            {"x": 100, "y": 350}
+            {
+              "x": 3,
+              "y": 5
+            },
+            {
+              "x": 2,
+              "y": 362
+            },
+            {
+              "x": 645,
+              "y": 3
+            }
+          ]
+        },
+        {
+          "zone_id": "zone_001",
+          "zone_name": "Detection Zone 1",
+          "polygon_points": [
+            {
+              "x": 647,
+              "y": 363
+            },
+            {
+              "x": 504,
+              "y": 361
+            },
+            {
+              "x": 504,
+              "y": 276
+            },
+            {
+              "x": 644,
+              "y": 276
+            }
           ]
         }
       ],
       "last_maintenance": "2024-10-05T12:00:00Z",
-      "installation_date": "2024-04-20T13:45:00Z"
+      "installation_date": "2024-04-20T13:45:00Z",
+      "last_updated": "2025-06-24T19:22:46.166552Z"
     }
   ],
   "system_settings": {
@@ -164,6 +220,6 @@
     "timezone": "Asia/Bangkok",
     "language": "en"
   },
-  "last_updated": "2024-12-23T10:00:00Z",
+  "last_updated": "2025-06-24T19:22:46.166552Z",
   "config_version": "1.0.0"
 }

@@ -162,6 +162,53 @@ class CameraConfigManager:
                 return self.save_config()
         return False
     
+    def update_detection_zone(self, camera_id: str, detection_zones: List[Dict]) -> bool:
+        """
+        Update detection zones for a camera
+        
+        Args:
+            camera_id: The camera ID to update
+            detection_zones: List of frame objects containing zone data
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if detection_zones is None or not isinstance(detection_zones, list):
+            print("Invalid detection zones provided")
+            return False
+        
+        # Convert frame data to detection zones
+        zones = []
+        for frame_data in detection_zones:
+            if not isinstance(frame_data, dict) or 'coordinates' not in frame_data:
+                continue
+                
+            # Convert coordinates to proper format
+            polygon_points = []
+            for coord in frame_data['coordinates']:
+                if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+                    polygon_points.append({"x": int(coord[0]), "y": int(coord[1])})
+            
+            zone = {
+                'zone_id': f"zone_{frame_data.get('id', len(zones) + 1):03d}",
+                'zone_name': f"Detection Zone {frame_data.get('id', len(zones) + 1)}",
+                'polygon_points': polygon_points
+            }
+            zones.append(zone)
+
+        cameras = self.get_all_cameras()
+        for camera in cameras:
+            if camera.get('camera_id') == camera_id:
+                # Replace existing detection zones with new ones
+                if len(camera['detection_zones']) > 0:
+                    camera['detection_zones'].append(zone)
+                else:
+                    camera['detection_zones'] = zones
+                camera['last_updated'] = datetime.now().isoformat() + 'Z'
+                
+                return self.save_config()
+        return False
+        
     def add_camera(self, camera_config: Dict[str, Any]) -> bool:
         """
         Add a new camera configuration

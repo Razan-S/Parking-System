@@ -1,8 +1,9 @@
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox, QScrollArea
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
 from src.gui.CamSelector import CameraSelector
-from src.gui.CamCard import CamCard, CamCardFrame
+from src.gui.CamCard import CamCardFrame
 from src.config.utils import CameraConfigManager
+from src.CardManager import CardManager
 import os
 
 class Dashboard(QWidget):
@@ -71,44 +72,6 @@ class Dashboard(QWidget):
 
         cameras_card = CamCardFrame(cameras_data=cameras_data)
         self.main_layout.addWidget(cameras_card)
-
-        # Create scroll area for camera cards
-        # scroll_area = QScrollArea()
-        # scroll_area.setWidgetResizable(True)
-        # scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        # scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        # scroll_area.setStyleSheet("""
-        #     QScrollArea {
-        #         border: none;
-        #         background-color: transparent;
-        #     }
-        # """)
-        
-        # # Create content widget for cards
-        # content_widget = QWidget()
-        # content_layout = QVBoxLayout(content_widget)
-        # content_layout.setSpacing(20)
-        # content_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # # Add cards section title
-        # cards_title = QLabel("Camera Monitor Cards")
-        # cards_title.setFont(cards_title.font())
-        # cards_title.font().setPointSize(16)
-        # cards_title.font().setBold(True)
-        # cards_title.setStyleSheet("color: #333333; margin-bottom: 15px;")
-        # cards_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # content_layout.addWidget(cards_title)
-        
-        # # Create camera cards grid
-        # self.create_camera_cards_grid(content_layout)
-        
-        # # Add stretch to push content to top
-        # content_layout.addStretch()
-        
-        # # Set scroll area content        # scroll_area.setWidget(content_widget)
-        
-        # # Add scroll area to main layout
-        # self.main_layout.addWidget(scroll_area)
 
     def on_camera_card_clicked(self, camera_name):
         """Handle camera card click events"""
