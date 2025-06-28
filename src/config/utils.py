@@ -199,11 +199,8 @@ class CameraConfigManager:
         cameras = self.get_all_cameras()
         for camera in cameras:
             if camera.get('camera_id') == camera_id:
-                # Replace existing detection zones with new ones
-                if len(camera['detection_zones']) > 0:
-                    camera['detection_zones'].append(zone)
-                else:
-                    camera['detection_zones'] = zones
+                # Replace all detection zones with new merged zones
+                camera['detection_zones'] = zones
                 camera['last_updated'] = datetime.now().isoformat() + 'Z'
                 
                 return self.save_config()

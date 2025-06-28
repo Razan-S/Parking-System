@@ -1,7 +1,5 @@
 import sys
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QPalette, QColor
-from src.gui.segmentor import RoadSegmenterGUI
 from src.gui.window import Window
 
 def main():

@@ -55,10 +55,11 @@ class RoadSegmenterGUI(QMainWindow):
             return
         
         self.video_path = camera.get('video_source', None)
-        self.current_coordinates = camera.get('detection_zones', [])
+        existing_zones = camera.get('detection_zones', [])
 
         self.init_ui()
         self.load_single_frame()
+        self.load_existing_detection_zones(existing_zones)
 
     def load_single_frame(self):
         """Load only the first frame from the video"""
@@ -83,6 +84,44 @@ class RoadSegmenterGUI(QMainWindow):
         except Exception as e:
             print(f"Error loading frame: {e}")
         
+    def load_existing_detection_zones(self, existing_zones):
+        """Load existing detection zones and display them as coordinate cards"""
+        if not existing_zones:
+            return
+        
+        self.existing_frames = []
+
+        for zone in existing_zones:
+            polygon_points = zone.get('polygon_points', [])
+            if not polygon_points:
+                continue
+                
+            # Convert polygon points to coordinate format
+            coordinates = []
+            for point in polygon_points:
+                coordinates.append([point.get('x', 0), point.get('y', 0)])
+
+            if coordinates:
+                # Create frame data for existing zone
+                frame_data = {
+                    'id': self.frame_counter,
+                    'coordinates': coordinates,
+                    'is_existing': True  # Flag to identify existing zones
+                }
+                self.saved_frames.append(frame_data)
+                self.existing_frames.append(frame_data)
+                
+                # Create card for existing zone
+                card = CoordinateCard(self.frame_counter, coordinates)
+                card.card_deleted.connect(self.delete_frame)
+                self.cards_layout.addWidget(card)
+                
+                self.frame_counter += 1
+        
+        # Enable submit button if there are existing zones
+        if self.saved_frames:
+            self.submit_btn.setEnabled(True)
+
     def create_menu_panel(self):
         panel = QFrame()
         panel.setStyleSheet("""
@@ -252,6 +291,10 @@ class RoadSegmenterGUI(QMainWindow):
             QMessageBox.information(self, "Info", "No frames to submit!")
             return
         
+        if self.saved_frames == self.existing_frames:
+            QMessageBox.information(self, "Info", "No changes detected. No need to submit.")
+            return
+
         response = self.config_manager.update_detection_zone(camera_id=self.camera_id, detection_zones=self.saved_frames)
         if response:
             QMessageBox.information(self, "Success", "Detection zone updated successfully.")
@@ -272,6 +315,19 @@ class RoadSegmenterGUI(QMainWindow):
 
     def go_back_to_dashboard(self):
         """Handle back button click to return to dashboard"""
+        if self.is_changed():
+            reply = QMessageBox.question(
+                self, 
+                "Unsaved Changes", 
+                "You have unsaved changes. Do you want to save them before leaving?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.submit_all_frames()
+            else:
+                return
+        
         self.closeEvent()  # Clean up before switching
         self.switch_to_dashboard_page.emit("dashboard")
     
@@ -286,6 +342,10 @@ class RoadSegmenterGUI(QMainWindow):
         self.camera_id = None
         self.video_path = None
         self.cap = None
+
+    def is_changed(self):
+        """Check if there are any changes to the saved frames"""
+        return self.saved_frames != self.existing_frames or self.current_coordinates
 
     def reset_all_state(self):
         """Reset all state variables and clear UI elements"""
