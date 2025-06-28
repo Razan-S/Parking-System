@@ -74,7 +74,6 @@ class Window(QMainWindow):
         self.config_page = RoadSegmenterGUI()
 
         self.dashboard.switch_to_config_page.connect(lambda cam: self.show_config_page(cam_name=cam))
-        self.config_page.coordinates_submitted.connect(lambda coordinates, cam_id: self.check_submitted_coordinates(coordinates=coordinates, camera_id=cam_id))
         self.config_page.switch_to_dashboard_page.connect(self.show_dashboard)
         
         # Set up config page (example content)
@@ -96,19 +95,6 @@ class Window(QMainWindow):
         # Add content area to main layout
         main_layout.addWidget(content_container)
 
-    def check_submitted_coordinates(self, coordinates, camera_id):
-        """Check if coordinates have been submitted in the config page"""
-        if coordinates and camera_id:
-            print("Coordinates submitted: ", coordinates)
-            response = self.config_manager.update_detection_zone(camera_id=camera_id, detection_zones=coordinates)
-            if response:
-                QMessageBox.information(self, "Success", "Detection zone updated successfully.")
-                self.show_dashboard() 
-            else:
-                QMessageBox.warning(self, "Error", "Failed to update detection zone.")  
-        else:
-            QMessageBox.warning(self,title="No coordinates submitted", text="Please submit coordinates before switching to the dashboard.")
-
     def show_dashboard(self):
         """Switch to dashboard page"""
         self.stack_widget.setCurrentWidget(self.dashboard)
@@ -120,5 +106,5 @@ class Window(QMainWindow):
             return
     
         camera = self.config_manager.get_camera_by_name(cam_name)
-        self.config_page.set_properties(camera['video_source'], camera['camera_id'])
+        self.config_page.set_camera(camera_id=camera.get("camera_id", None))
         self.stack_widget.setCurrentWidget(self.config_page)

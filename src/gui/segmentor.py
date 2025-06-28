@@ -3,51 +3,30 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                             QMessageBox, QSplitter, QScrollArea)
 from PyQt6.QtCore import Qt, pyqtSignal
 from src.gui.components import VideoFrameWidget, DarkButton, CoordinateCard
+from src.config.utils import CameraConfigManager
 from ..utils import is_valid_polygon
 import cv2 as cv
 
 class RoadSegmenterGUI(QMainWindow):
-    coordinates_submitted = pyqtSignal(list)
     switch_to_dashboard_page = pyqtSignal(str)
 
-    def __init__(self, video_path):
+    def __init__(self, camera_id=None):
         super().__init__()
-        self.video_path = video_path
-        self.current_coordinates = []
-        self.frame_counter = 1
-        self.saved_frames = []
-        self.cap = None
-        self.submitted_coordinates = None
+        self.config_manager = CameraConfigManager()
+        self.camera_id = camera_id
 
-        self.init_ui()
-        self.load_single_frame()
+        if not self.camera_id:
+            self.video_path = None
+            self.current_coordinates = []
+            self.frame_counter = 1
+            self.saved_frames = []
+            self.cap = None
+        else:
+            self.setup()
         
     def init_ui(self):
         self.setWindowTitle("Road Segmenter")
         self.setGeometry(0, 0, 1400, 800)
-        
-        # Dark theme
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #2b2b2b;
-                color: #e0e0e0;
-            }
-            QLabel {
-                color: #e0e0e0;
-                font-size: 13px;
-            }
-            QSpinBox {
-                padding: 8px;
-                border: 1px solid #555;
-                border-radius: 4px;
-                font-size: 13px;
-                background: #404040;
-                color: #e0e0e0;
-            }
-            QSpinBox:focus {
-                border-color: #0d7377;
-            }
-        """)
         
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -58,17 +37,29 @@ class RoadSegmenterGUI(QMainWindow):
         
         splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
-        
-        # Left sidebar
-        left_panel = self.create_left_panel()
-        splitter.addWidget(left_panel)
-        
-        # Right panel (segmentation area)
-        right_panel = self.create_right_panel()
-        splitter.addWidget(right_panel)
+
+        menu_panel = self.create_menu_panel()
+        video_panel = self.create_video_panel()
+
+        splitter.addWidget(video_panel)
+        splitter.addWidget(menu_panel)
         
         splitter.setSizes([350, 1050])
-    
+
+    def setup(self):
+        """Set up the video path and load the first frame"""
+        if self.camera_id:
+            camera = self.config_manager.get_camera_by_id(self.camera_id)
+        else:
+            QMessageBox.warning(self, "No Camera ID", "Please set a camera ID before proceeding.")
+            return
+        
+        self.video_path = camera.get('video_source', None)
+        self.current_coordinates = camera.get('detection_zones', [])
+
+        self.init_ui()
+        self.load_single_frame()
+
     def load_single_frame(self):
         """Load only the first frame from the video"""
         try:
@@ -92,7 +83,7 @@ class RoadSegmenterGUI(QMainWindow):
         except Exception as e:
             print(f"Error loading frame: {e}")
         
-    def create_left_panel(self):
+    def create_menu_panel(self):
         panel = QFrame()
         panel.setStyleSheet("""
             QFrame {
@@ -170,7 +161,7 @@ class RoadSegmenterGUI(QMainWindow):
         
         return panel
     
-    def create_right_panel(self):
+    def create_video_panel(self):
         panel = QFrame()
         panel.setStyleSheet("""
             QFrame {
@@ -261,33 +252,66 @@ class RoadSegmenterGUI(QMainWindow):
             QMessageBox.information(self, "Info", "No frames to submit!")
             return
         
-        result_text = f"Successfully submitted {len(self.saved_frames)} frames:\n\n"
-        for frame in self.saved_frames:
-            result_text += f"Frame {frame['id']}: {len(frame['coordinates'])} points\n"
+        response = self.config_manager.update_detection_zone(camera_id=self.camera_id, detection_zones=self.saved_frames)
+        if response:
+            QMessageBox.information(self, "Success", "Detection zone updated successfully.")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to update detection zone.")
         
-        msg = QMessageBox()
-        msg.setWindowTitle("Frames Submitted")
-        msg.setText("✅ All frames submitted successfully!")
-        msg.setDetailedText(result_text)
-        msg.setIcon(QMessageBox.Icon.Information)
-        msg.exec()
+        self.closeEvent()  # Clean up before switching
+        self.switch_to_dashboard_page.emit("dashboard")
+
+    def set_camera(self, camera_id):
+        """Set the video path and load the first frame"""
+        self.camera_id = camera_id
         
-        # Store coordinates for later retrieval
-        self.submitted_coordinates = self.saved_frames.copy()
+        # Reset all state when setting a new camera
+        self.reset_all_state()
         
-        # Method 1: Emit signal
-        self.coordinates_submitted.emit(self.saved_frames)
-        self.switch_to_dashboard_page.emit("Road Segmenter")
+        self.setup()
 
     def go_back_to_dashboard(self):
         """Handle back button click to return to dashboard"""
+        self.closeEvent()  # Clean up before switching
         self.switch_to_dashboard_page.emit("dashboard")
-
-    def get_submitted_coordinates(self):
-        """Get the last submitted coordinates"""
-        return self.video_widget.frame, self.submitted_coordinates
     
-    def closeEvent(self, event):
+    def closeEvent(self):
+        """Clean up resources when closing or switching away"""
         if self.cap:
             self.cap.release()
-        event.accept()
+        
+        # Reset all state when closing/switching
+        self.reset_all_state()
+        
+        self.camera_id = None
+        self.video_path = None
+        self.cap = None
+
+    def reset_all_state(self):
+        """Reset all state variables and clear UI elements"""
+        # Clear coordinates and frames
+        self.current_coordinates = []
+        self.saved_frames = []
+        self.frame_counter = 1
+        
+        # Clear video widget coordinates
+        if hasattr(self, 'video_widget'):
+            self.video_widget.clear_coordinates()
+        
+        # Clear all frame cards from the layout
+        if hasattr(self, 'cards_layout'):
+            # Remove all cards from the layout
+            while self.cards_layout.count():
+                item = self.cards_layout.takeAt(0)
+                if item and item.widget():
+                    widget = item.widget()
+                    widget.setParent(None)
+                    widget.deleteLater()
+        
+        # Reset button states
+        if hasattr(self, 'add_frame_btn'):
+            self.add_frame_btn.setEnabled(False)
+        if hasattr(self, 'submit_btn'):
+            self.submit_btn.setEnabled(False)
+        if hasattr(self, 'clear_btn'):
+            self.clear_btn.setEnabled(False)
