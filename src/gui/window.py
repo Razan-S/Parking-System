@@ -106,5 +106,12 @@ class Window(QMainWindow):
             return
     
         camera = self.config_manager.get_camera_by_name(cam_name)
-        self.config_page.set_camera(camera_id=camera.get("camera_id", None))
-        self.stack_widget.setCurrentWidget(self.config_page)
+        if camera:
+            camera_id = camera.get("camera_id", None)
+            if camera_id:
+                self.config_page.set_camera(camera_id)
+                self.stack_widget.setCurrentWidget(self.config_page)
+            else:
+                QMessageBox.warning(self, "Invalid camera", f"Camera {cam_name} does not have a valid camera_id.")
+        else:
+            QMessageBox.warning(self, "Camera not found", f"Camera {cam_name} not found in configuration.")

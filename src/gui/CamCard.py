@@ -1,20 +1,23 @@
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QScrollArea, QMessageBox
-from PyQt6.QtGui import QPixmap, QFont
+from PyQt6.QtGui import QPixmap, QFont, QImage
+import cv2 as cv
 import os
+
+from src.config.utils import CameraConfigManager
 
 class CamCard(QWidget):
     card_clicked = pyqtSignal(str)  # Signal emitted when card is clicked
     
     def __init__(self, camera_name="Unknown", camera_id="0", location="Unknown", 
-                 camera_status="error", parking_status="empty", image_path=None, card_size=(300, 350)):
+                 camera_status="error", parking_status="empty", video_source=None, card_size=(300, 350)):
         super().__init__()        
         self.camera_name = camera_name
         self.camera_id = camera_id
         self.location = location
         self.camera_status = camera_status  # "working", "not_working", "error"
         self.parking_status = parking_status  # "available", "occupied", "unknown"
-        self.image_path = image_path
+        self.video_source = video_source
         
         self.init_ui()
         self.setFixedSize(card_size[0], card_size[1])
@@ -145,8 +148,29 @@ class CamCard(QWidget):
         
     def load_image(self):
         """Load camera image or show placeholder"""
-        if self.image_path and os.path.exists(self.image_path):
-            pixmap = QPixmap(self.image_path)
+        if self.video_source and os.path.exists(self.video_source):
+            cap = cv.VideoCapture(self.video_source)
+            if not cap.isOpened():
+                QMessageBox.warning(self, "Error", f"Could not open video source: {self.video_source}")
+                return
+            
+            ret, frame = cap.read()
+            cap.release()  # Don't forget to release the capture
+            
+            if not ret:
+                QMessageBox.warning(self, "Error", "Could not read frame from video source.")
+                return
+            
+            # Convert BGR to RGB (OpenCV uses BGR, Qt uses RGB)
+            rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+            
+            # Convert to QImage
+            height, width, channels = rgb_frame.shape
+            bytes_per_line = channels * width
+            q_image = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+            
+            # Convert QImage to QPixmap
+            pixmap = QPixmap.fromImage(q_image)
             scaled_pixmap = pixmap.scaled(300, 200, Qt.AspectRatioMode.KeepAspectRatioByExpanding, 
                                         Qt.TransformationMode.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
@@ -243,17 +267,21 @@ class CamCard(QWidget):
     def mousePressEvent(self, event):
         """Handle mouse click events"""
         if event.button() == Qt.MouseButton.LeftButton:
-            self.card_clicked.emit(self.camera_name)
+            self.card_clicked.emit(self.camera_id)  # Emit signal with camera ID
         super().mousePressEvent(event)
 
 class CamCardFrame(QWidget):
+    card_clicked = pyqtSignal(str)  # Signal emitted when a camera card is clicked
+
     """Custom frame to hold CamCard with rounded corners"""
-    def __init__(self, cameras_data=[], cards_per_row=2, card_size=(300, 350)):
+    def __init__(self, cards_per_row=2, card_size=(300, 350)):
         super().__init__()
         self.ROOT_DIR = os.path.abspath(os.curdir)
         self.IMAGE_DIR = os.path.join(self.ROOT_DIR, "image")
 
-        self.cameras = cameras_data if cameras_data else []
+        self.config_manager = CameraConfigManager()
+
+        self.cameras = self.config_manager.get_all_cameras()
         self.cards_per_row = cards_per_row
         self.card_size = card_size
 
@@ -324,7 +352,7 @@ class CamCardFrame(QWidget):
                 location=camera_data["location"],
                 camera_status=camera_data["camera_status"],
                 parking_status=camera_data["parking_status"],
-                image_path=camera_data["image"],
+                video_source=camera_data["video_source"],
                 card_size=self.card_size
             )
             
@@ -344,8 +372,7 @@ class CamCardFrame(QWidget):
         # Set scroll area content
         self.scroll_area.setWidget(content_widget)
 
-    def on_camera_card_clicked(self, camera_name):
+    def on_camera_card_clicked(self, camera_id):
         """Handle camera card click events"""
-        print(f"CamCardFrame: Camera card clicked: {camera_name}")
-        # You can emit a signal here if needed to communicate with parent widgets
-
+        print(f"CamCardFrame: Camera card clicked: {camera_id}")
+        self.card_clicked.emit(camera_id)

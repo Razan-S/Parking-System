@@ -308,7 +308,22 @@ class RoadSegmenterGUI(QMainWindow):
             QMessageBox.information(self, "Info", "No changes detected. No need to submit.")
             return
 
-        response = self.config_manager.update_detection_zone(camera_id=self.camera_id, detection_zones=self.saved_frames)
+        # Get camera details for proper validation
+        camera = self.config_manager.get_camera_by_id(self.camera_id)
+        if not camera:
+            QMessageBox.warning(self, "Error", "Camera not found in configuration.")
+            return
+            
+        camera_name = camera.get('camera_name')
+        if not camera_name:
+            QMessageBox.warning(self, "Error", "Camera name not found in configuration.")
+            return
+
+        response = self.config_manager.update_detection_zone(
+            camera_id=self.camera_id, 
+            camera_name=camera_name, 
+            detection_zones=self.saved_frames
+        )
         if response:
             QMessageBox.information(self, "Success", "Detection zone updated successfully.")
         else:

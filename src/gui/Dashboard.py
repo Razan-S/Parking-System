@@ -70,16 +70,19 @@ class Dashboard(QWidget):
             if camera.get('image') and not os.path.isabs(camera['image']):
                 camera['image'] = os.path.join(ROOT_DIR, camera['image'])
 
-        cameras_card = CamCardFrame(cameras_data=cameras_data)
+        cameras_card = CamCardFrame()
+        cameras_card.card_clicked.connect(lambda cam_id: self.handle_camera_card_click(cam_id))
         self.main_layout.addWidget(cameras_card)
 
-    def on_camera_card_clicked(self, camera_name):
-        """Handle camera card click events"""
-        print(f"DASHBOARD: Selected camera card: {camera_name}")
-        self.selected_camera = camera_name
-        
-        # Update card selection styling
-        self.refresh_card_selection()
+    def handle_camera_card_click(self, camera_id):
+        """Handle camera card click by finding the camera name and updating selector"""
+        camera = self.config_manager.get_camera_by_id(camera_id)
+        if camera:
+            camera_name = camera.get('camera_name')
+            if camera_name:
+                self.camera_selector.set_selected_camera(camera_name)
+        else:
+            print(f"Camera with ID {camera_id} not found")
 
     def refresh_card_selection(self):
         """Refresh the visual selection of camera cards"""
@@ -119,19 +122,45 @@ class Dashboard(QWidget):
                     self.camera_selector.update_camera_status(camera_name, self.camera_statuses[i])
     
     def update_camera_status_in_config(self, camera_name: str, status: str):
-        """Update camera status in configuration file"""
+        """Update camera status in configuration file using both camera_id and camera_name"""
         camera = self.config_manager.get_camera_by_name(camera_name)
         if camera:
-            self.config_manager.update_camera_status(camera['camera_id'], status)
-            self.refresh_camera_data()
+            camera_id = camera.get('camera_id')
+            if camera_id:
+                # Validate camera exists with both fields
+                if self.config_manager.validate_camera_exists(camera_id, camera_name):
+                    success = self.config_manager.update_camera_status(camera_id, camera_name, status)
+                    if success:
+                        self.refresh_camera_data()
+                    else:
+                        print(f"Failed to update camera status for {camera_name}")
+                else:
+                    print(f"Camera validation failed for {camera_name}")
+            else:
+                print(f"Camera ID not found for {camera_name}")
+        else:
+            print(f"Camera {camera_name} not found")
     
     def update_parking_status_in_config(self, camera_name: str, parking_status: str):
-        """Update parking status in configuration file"""
+        """Update parking status in configuration file using both camera_id and camera_name"""
         camera = self.config_manager.get_camera_by_name(camera_name)
         if camera:
-            self.config_manager.update_parking_status(camera['camera_id'], parking_status)
-            # Refresh the camera cards to show updated status
-            self.refresh_camera_cards()
+            camera_id = camera.get('camera_id')
+            if camera_id:
+                # Validate camera exists with both fields
+                if self.config_manager.validate_camera_exists(camera_id, camera_name):
+                    success = self.config_manager.update_parking_status(camera_id, camera_name, parking_status)
+                    if success:
+                        # Refresh the camera cards to show updated status
+                        self.refresh_camera_cards()
+                    else:
+                        print(f"Failed to update parking status for {camera_name}")
+                else:
+                    print(f"Camera validation failed for {camera_name}")
+            else:
+                print(f"Camera ID not found for {camera_name}")
+        else:
+            print(f"Camera {camera_name} not found")
     
     def refresh_camera_cards(self):
         """Refresh camera cards with updated data from configuration"""
