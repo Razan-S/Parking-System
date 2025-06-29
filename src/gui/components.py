@@ -14,6 +14,7 @@ class VideoFrameWidget(QLabel):
         self.offset_x = 0
         self.offset_y = 0
         self.show_connections = True  # Flag to toggle line display
+        self.saved_polygons = {}  # Store saved polygons with their IDs and types
         self.setMinimumSize(800, 600)
         self.setStyleSheet("""
             QLabel {
@@ -37,10 +38,27 @@ class VideoFrameWidget(QLabel):
         # Create display frame
         display_frame = self.frame.copy()
 
-        # Draw filled polygon
-        if len(self.coordinates) >= 3:
-            import numpy as np
+        # Draw saved polygons first (underneath current drawing)
+        import numpy as np
+        for polygon in self.saved_polygons.values():
+            coords = polygon['coordinates']
+            color = polygon['color']
             
+            if len(coords) >= 3:
+                # Create semi-transparent overlay for saved polygons
+                overlay = display_frame.copy()
+                contour = np.array([coords], dtype=np.int32)
+                cv.drawContours(overlay, contour, -1, color, thickness=cv.FILLED)
+                
+                # Blend with original (30% transparency)
+                cv.addWeighted(overlay, 0.3, display_frame, 0.7, 0, display_frame)
+                
+                # Draw polygon border with darker version of the color
+                border_color = tuple(int(c * 0.8) for c in color)
+                cv.drawContours(display_frame, contour, -1, border_color, thickness=2)
+
+        # Draw current polygon being drawn
+        if len(self.coordinates) >= 3:
             # Create semi-transparent overlay
             overlay = display_frame.copy()
             contour = np.array([self.coordinates], dtype=np.int32)
@@ -52,7 +70,7 @@ class VideoFrameWidget(QLabel):
             # Draw polygon border
             cv.drawContours(display_frame, contour, -1, (0, 200, 0), thickness=2)
 
-        # Draw connecting lines
+        # Draw connecting lines for current polygon
         if self.show_connections and len(self.coordinates) > 1:
             for i in range(len(self.coordinates) - 1):
                 pt1 = (int(self.coordinates[i][0]), int(self.coordinates[i][1]))
@@ -65,7 +83,7 @@ class VideoFrameWidget(QLabel):
                 pt2 = (int(self.coordinates[0][0]), int(self.coordinates[0][1]))
                 cv.line(display_frame, pt1, pt2, (255, 0, 0), 2)
 
-        # Draw points
+        # Draw points for current polygon
         for i, (x, y) in enumerate(self.coordinates):
             center = (int(x), int(y))
             cv.circle(display_frame, center, 8, (0, 255, 0), -1)  # Green filled circle
@@ -118,6 +136,35 @@ class VideoFrameWidget(QLabel):
         super().resizeEvent(event)
         if self.frame is not None:
             self.update_display()
+    
+    def add_existing_polygon(self, coordinates, polygon_id):
+        """Add an existing polygon (orange color) to be displayed"""
+        self.saved_polygons[polygon_id] = {
+            'coordinates': coordinates,
+            'type': 'existing',
+            'color': (255, 165, 0)  # Orange color for existing
+        }
+        self.update_display()
+    
+    def add_new_polygon(self, coordinates, polygon_id):
+        """Add a new polygon (green color) to be displayed"""
+        self.saved_polygons[polygon_id] = {
+            'coordinates': coordinates,
+            'type': 'new',
+            'color': (0, 255, 0)  # Green color for new
+        }
+        self.update_display()
+    
+    def remove_polygon(self, polygon_id):
+        """Remove a polygon by its ID"""
+        if polygon_id in self.saved_polygons:
+            del self.saved_polygons[polygon_id]
+            self.update_display()
+    
+    def clear_all_polygons(self):
+        """Clear all saved polygons"""
+        self.saved_polygons = {}
+        self.update_display()
 
 class CoordinateCard(QFrame):
     card_deleted = pyqtSignal(int)

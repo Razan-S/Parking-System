@@ -111,6 +111,9 @@ class RoadSegmenterGUI(QMainWindow):
                 self.saved_frames.append(frame_data)
                 self.existing_frames.append(frame_data)
                 
+                # Add existing zone to video widget with orange color
+                self.video_widget.add_existing_polygon(coordinates, self.frame_counter)
+                
                 # Create card for existing zone
                 card = CoordinateCard(self.frame_counter, coordinates)
                 card.card_deleted.connect(self.delete_frame)
@@ -248,6 +251,9 @@ class RoadSegmenterGUI(QMainWindow):
         }
         self.saved_frames.append(frame_data)
         
+        # Add new polygon to video widget with default color
+        self.video_widget.add_new_polygon(self.current_coordinates.copy(), self.frame_counter)
+        
         # Create card
         card = CoordinateCard(self.frame_counter, self.current_coordinates)
         card.card_deleted.connect(self.delete_frame)  # Connect delete signal
@@ -270,6 +276,9 @@ class RoadSegmenterGUI(QMainWindow):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
+            # Remove polygon from video widget
+            self.video_widget.remove_polygon(frame_id)
+            
             # Remove from saved_frames
             self.saved_frames = [frame for frame in self.saved_frames if frame['id'] != frame_id]
             
@@ -291,6 +300,10 @@ class RoadSegmenterGUI(QMainWindow):
             QMessageBox.information(self, "Info", "No frames to submit!")
             return
         
+        if self.current_coordinates:
+            QMessageBox.warning(self, "Unsaved Coordinates", "Please save the current coordinates before submitting.")
+            return
+
         if self.saved_frames == self.existing_frames:
             QMessageBox.information(self, "Info", "No changes detected. No need to submit.")
             return
@@ -354,9 +367,10 @@ class RoadSegmenterGUI(QMainWindow):
         self.saved_frames = []
         self.frame_counter = 1
         
-        # Clear video widget coordinates
+        # Clear video widget coordinates and polygons
         if hasattr(self, 'video_widget'):
             self.video_widget.clear_coordinates()
+            self.video_widget.clear_all_polygons()
         
         # Clear all frame cards from the layout
         if hasattr(self, 'cards_layout'):
