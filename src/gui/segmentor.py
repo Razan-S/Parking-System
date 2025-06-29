@@ -1,11 +1,12 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QFrame,
                             QMessageBox, QSplitter, QScrollArea)
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from src.gui.components import VideoFrameWidget, DarkButton, CoordinateCard
 from src.config.utils import CameraConfigManager
 from ..utils import is_valid_polygon
 import cv2 as cv
+from datetime import datetime
 
 class RoadSegmenterGUI(QMainWindow):
     switch_to_dashboard_page = pyqtSignal(str)
@@ -13,16 +14,35 @@ class RoadSegmenterGUI(QMainWindow):
     def __init__(self, camera_id=None):
         super().__init__()
         self.config_manager = CameraConfigManager()
-        self.camera_id = camera_id
 
-        if not self.camera_id:
-            self.video_path = None
-            self.current_coordinates = []
-            self.frame_counter = 1
-            self.saved_frames = []
-            self.cap = None
-        else:
+        self.camera = self.config_manager.get_camera_by_id(camera_id) if camera_id else None
+        self.camera_id = camera_id
+        
+        if self.camera:
+            self.camera_name = self.camera.get('camera_name', 'Road Segmenter')
+
+        # Initialize all attributes first
+        self.video_path = None
+        self.current_coordinates = []
+        self.frame_counter = 1
+        self.saved_frames = []
+        self.cap = None
+        self.last_frame_time = None
+        self.time_label = None
+        self.date_label = None
+        self.ui_initialized = False
+        
+        # Initialize timer for clock updates (but don't start yet)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_clock)
+        
+        if self.camera_id:
             self.setup()
+        else:
+            # Initialize UI even without camera for consistency
+            self.init_ui()
+            self.ui_initialized = True
+            self.timer.start(1000)  # Start timer after UI is ready
         
     def init_ui(self):
         self.setWindowTitle("Road Segmenter")
@@ -44,7 +64,7 @@ class RoadSegmenterGUI(QMainWindow):
         splitter.addWidget(video_panel)
         splitter.addWidget(menu_panel)
         
-        splitter.setSizes([350, 1050])
+        splitter.setSizes([1050, 350])
 
     def setup(self):
         """Set up the video path and load the first frame"""
@@ -57,7 +77,12 @@ class RoadSegmenterGUI(QMainWindow):
         self.video_path = camera.get('video_source', None)
         existing_zones = camera.get('detection_zones', [])
 
-        self.init_ui()
+        # Only init UI if not already initialized
+        if not self.ui_initialized:
+            self.init_ui()
+            self.ui_initialized = True
+            self.timer.start(1000)  # Start timer after UI is ready
+            
         self.load_single_frame()
         self.load_existing_detection_zones(existing_zones)
 
@@ -74,6 +99,8 @@ class RoadSegmenterGUI(QMainWindow):
             if ret and frame is not None:
                 self.video_widget.set_frame(frame)
                 self.clear_btn.setEnabled(True)
+                self.last_frame_time = datetime.now()  # Record timestamp
+                self.update_clock()  # Update clock display
             else:
                 print("Could not read first frame")
             
@@ -123,80 +150,291 @@ class RoadSegmenterGUI(QMainWindow):
         
         # Enable submit button if there are existing zones
         if self.saved_frames:
-            self.submit_btn.setEnabled(True)
+            self.submit_btn.setEnabled(False)
 
     def create_menu_panel(self):
         panel = QFrame()
         panel.setStyleSheet("""
             QFrame {
-                background-color: #333;
-                border-radius: 8px;
-                border: 1px solid #555;
+                background-color: #1a1a1a;
+                border: none;
             }
         """)
         
         layout = QVBoxLayout(panel)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(8)
+        layout.setContentsMargins(15, 15, 15, 15)
         
-        # Title
-        title = QLabel("🛣️ Road Segmenter")
-        title.setStyleSheet("""
-            QLabel {
-                font-size: 18px;
+        # Back button
+        self.back_btn = DarkButton("Back")
+        self.back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #000000;
+                border: 1px solid #CCCCCC;
+                border-radius: 5px;
+                padding: 8px 16px;
+                font-size: 12px;
                 font-weight: bold;
-                color: #0d7377;
-                padding: 10px 0;
-            }        """)
-        layout.addWidget(title)
-
-        self.back_btn = DarkButton("🔙 Main page")
-        self.back_btn.setEnabled(True)
+                text-align: center;
+                min-height: 25px;
+            }
+            QPushButton:hover {
+                background-color: #F0F0F0;
+            }
+            QPushButton:pressed {
+                background-color: #E0E0E0;
+            }
+        """)
         self.back_btn.clicked.connect(self.go_back_to_dashboard)
         layout.addWidget(self.back_btn)
         
-        # Clear coordinates button
-        self.clear_btn = DarkButton("🗑️ Clear Points")
-        self.clear_btn.clicked.connect(self.clear_coordinates)
-        self.clear_btn.setEnabled(False)
-        layout.addWidget(self.clear_btn)
-        
         # Add Frame button
-        self.add_frame_btn = DarkButton("➕ Add Frame")
+        self.add_frame_btn = DarkButton("Add Frame")
+        self.add_frame_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #000000;
+                border: 1px solid #CCCCCC;
+                border-radius: 5px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+                min-height: 25px;
+            }
+            QPushButton:hover {
+                background-color: #F0F0F0;
+            }
+            QPushButton:pressed {
+                background-color: #E0E0E0;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #888888;
+            }
+        """)
         self.add_frame_btn.clicked.connect(self.add_frame)
         self.add_frame_btn.setEnabled(False)
         layout.addWidget(self.add_frame_btn)
         
-        # Coordinates cards
-        coords_label = QLabel("📍 Saved Frames:")
-        coords_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
+        # Clear Points button
+        self.clear_btn = DarkButton("Clear points")
+        self.clear_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #000000;
+                border: 1px solid #CCCCCC;
+                border-radius: 5px;
+                padding: 8px 16px;
+                font-size: 12px;
                 font-weight: bold;
-                color: #0d7377;
-                margin-top: 10px;
+                text-align: center;
+                min-height: 25px;
+            }
+            QPushButton:hover {
+                background-color: #F0F0F0;
+            }
+            QPushButton:pressed {
+                background-color: #E0E0E0;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #888888;
             }
         """)
-        layout.addWidget(coords_label)
+        self.clear_btn.clicked.connect(self.clear_coordinates)
+        self.clear_btn.setEnabled(False)
+        layout.addWidget(self.clear_btn)
         
-        # Scroll area for cards
+        # Clock display
+        clock_frame = QFrame()
+        clock_frame.setStyleSheet("""
+            QFrame {
+                background-color: #2a2a2a;
+                border: 1px solid #404040;
+                border-radius: 5px;
+                padding: 5px;
+                min-height: 90px;
+                max-height: 90px;
+            }
+        """)
+        clock_layout = QVBoxLayout(clock_frame)
+        clock_layout.setContentsMargins(5, 5, 5, 5)
+        clock_layout.setSpacing(2)
+        
+        clock_label = QLabel("Latest frame at:")
+        clock_label.setStyleSheet("""
+            QLabel {
+                font-size: 10px;
+                color: #CCCCCC;
+                border: none;
+                background: transparent;
+                padding: 2px;
+                margin: 0px;
+                min-height: 16px;
+            }
+        """)
+        clock_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        clock_layout.addWidget(clock_label)
+        
+        self.time_label = QLabel("--:--")
+        self.time_label.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #FFFFFF;
+                border: none;
+                background: transparent;
+                padding: 2px;
+                margin: 0px;
+                min-height: 24px;
+            }
+        """)
+        self.time_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        clock_layout.addWidget(self.time_label)
+        
+        self.date_label = QLabel("-- --- ----")
+        self.date_label.setStyleSheet("""
+            QLabel {
+                font-size: 10px;
+                color: #CCCCCC;
+                border: none;
+                background: transparent;
+                padding: 2px;
+                margin: 0px;
+                min-height: 16px;
+            }
+        """)
+        self.date_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
+        clock_layout.addWidget(self.date_label)
+        
+        # Add stretch to push content to top
+        clock_layout.addStretch()
+        
+        layout.addWidget(clock_frame)
+        
+        # Saved Frame section
+        saved_frame_label = QLabel("Saved Frame")
+        saved_frame_label.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                font-weight: bold;
+                color: #FFFFFF;
+                margin-top: 15px;
+                margin-bottom: 5px;
+            }
+        """)
+        layout.addWidget(saved_frame_label)
+        
+        # Scroll area for saved frames
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setMinimumHeight(200)  # Set minimum height for larger saved frame area
+        scroll.setMaximumHeight(300)  # Set maximum height to prevent it from being too large
         scroll.setStyleSheet("""
             QScrollArea {
-                background: #2b2b2b;
+                background: transparent;
                 border: none;
+            }
+            QScrollBar:vertical {
+                background-color: #2a2a2a;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #555555;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #777777;
             }
         """)
         
         self.cards_widget = QWidget()
         self.cards_layout = QVBoxLayout(self.cards_widget)
         self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.cards_layout.setSpacing(5)
         scroll.setWidget(self.cards_widget)
         layout.addWidget(scroll)
         
+        # Add stretch to push buttons to bottom
+        layout.addStretch()
+        
+        # New Shot button
+        self.new_shot_btn = DarkButton("New Shot")
+        self.new_shot_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #000000;
+                border: 1px solid #CCCCCC;
+                border-radius: 5px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+                min-height: 25px;
+            }
+            QPushButton:hover {
+                background-color: #F0F0F0;
+            }
+            QPushButton:pressed {
+                background-color: #E0E0E0;
+            }
+        """)
+        self.new_shot_btn.clicked.connect(self.take_new_shot)
+        layout.addWidget(self.new_shot_btn)
+        
+        # Stop Detect button
+        self.stop_detect_btn = DarkButton("Stop Detect")
+        self.stop_detect_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #000000;
+                border: 1px solid #CCCCCC;
+                border-radius: 5px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+                min-height: 25px;
+            }
+            QPushButton:hover {
+                background-color: #F0F0F0;
+            }
+            QPushButton:pressed {
+                background-color: #E0E0E0;
+            }
+        """)
+        self.stop_detect_btn.clicked.connect(self.stop_detection)
+        layout.addWidget(self.stop_detect_btn)
+        
         # Submit button
-        self.submit_btn = DarkButton("✅ Submit All", primary=True)
+        self.submit_btn = DarkButton("Submit")
+        self.submit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #000000;
+                border: 1px solid #CCCCCC;
+                border-radius: 5px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+                min-height: 25px;
+            }
+            QPushButton:hover {
+                background-color: #F0F0F0;
+            }
+            QPushButton:pressed {
+                background-color: #E0E0E0;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #888888;
+            }
+        """)
         self.submit_btn.clicked.connect(self.submit_all_frames)
         self.submit_btn.setEnabled(False)
         layout.addWidget(self.submit_btn)
@@ -231,6 +469,9 @@ class RoadSegmenterGUI(QMainWindow):
         self.video_widget.clear_coordinates()
         self.current_coordinates = []
         self.add_frame_btn.setEnabled(False)
+
+        if self.existing_frames == self.saved_frames:
+            self.submit_btn.setEnabled(False)
     
     def add_frame(self):
         if not self.current_coordinates:
@@ -293,7 +534,7 @@ class RoadSegmenterGUI(QMainWindow):
                         break
             
             # Update submit button state
-            self.submit_btn.setEnabled(len(self.saved_frames) > 0)
+            self.submit_btn.setEnabled(len(self.saved_frames) > 0 and (self.saved_frames != self.existing_frames))
     
     def submit_all_frames(self):
         if not self.saved_frames:
@@ -339,7 +580,9 @@ class RoadSegmenterGUI(QMainWindow):
         # Reset all state when setting a new camera
         self.reset_all_state()
         
-        self.setup()
+        # Only setup if camera_id is valid
+        if camera_id:
+            self.setup()
 
     def go_back_to_dashboard(self):
         """Handle back button click to return to dashboard"""
@@ -364,12 +607,17 @@ class RoadSegmenterGUI(QMainWindow):
         if self.cap:
             self.cap.release()
         
+        # Stop the timer
+        if hasattr(self, 'timer') and self.timer:
+            self.timer.stop()
+        
         # Reset all state when closing/switching
         self.reset_all_state()
         
         self.camera_id = None
         self.video_path = None
         self.cap = None
+        self.ui_initialized = False
 
     def is_changed(self):
         """Check if there are any changes to the saved frames"""
@@ -381,6 +629,7 @@ class RoadSegmenterGUI(QMainWindow):
         self.current_coordinates = []
         self.saved_frames = []
         self.frame_counter = 1
+        self.last_frame_time = None
         
         # Clear video widget coordinates and polygons
         if hasattr(self, 'video_widget'):
@@ -404,3 +653,43 @@ class RoadSegmenterGUI(QMainWindow):
             self.submit_btn.setEnabled(False)
         if hasattr(self, 'clear_btn'):
             self.clear_btn.setEnabled(False)
+        
+        # Update clock display
+        if hasattr(self, 'update_clock') and hasattr(self, 'time_label') and self.time_label:
+            self.update_clock()
+    
+    def update_clock(self):
+        """Update the clock display with the latest frame time"""
+        # Check if UI components exist before updating
+        if not hasattr(self, 'time_label') or not self.time_label:
+            return
+            
+        if self.last_frame_time:
+            time_str = self.last_frame_time.strftime("%H:%M")
+            date_str = self.last_frame_time.strftime("%d %b %Y")
+            self.time_label.setText(time_str)
+            self.date_label.setText(date_str)
+        else:
+            self.time_label.setText("--:--")
+            self.date_label.setText("-- --- ----")
+    
+    def take_new_shot(self):
+        """Take a new shot from the video source"""
+        if not self.video_path:
+            QMessageBox.warning(self, "No Video Source", "No video source available for new shot.")
+            return
+        
+        # Clear current coordinates and frame
+        self.clear_coordinates()
+        
+        # Load a new frame (for now, just reload the first frame)
+        # In a real implementation, this might capture from a live camera
+        self.load_single_frame()
+        
+        QMessageBox.information(self, "New Shot", "New frame captured successfully!")
+    
+    def stop_detection(self):
+        """Stop detection functionality - placeholder for future implementation"""
+        QMessageBox.information(self, "Stop Detection", "Detection stopped.")
+        # This is a placeholder - implement actual stop detection logic here
+        pass
