@@ -29,7 +29,7 @@ class Window(QMainWindow):
         self.setGeometry(0, 0, 300, 300)
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #ffffff;
+                background-color: #1a1a1a;
             }
         """)
 
@@ -58,7 +58,7 @@ class Window(QMainWindow):
                 font-weight: bold; 
                 color: #ffffff;
                 background-color: #000000;
-
+                border-bottom: 1px solid #666666;
             }
         """)
         header_label.setFixedHeight(50)
@@ -80,7 +80,7 @@ class Window(QMainWindow):
         config_layout = QVBoxLayout(self.config_page)
         config_layout.setContentsMargins(20, 20, 20, 20)
         config_label = QLabel("Configuration Content")
-        config_label.setStyleSheet("font-size: 18px; color: #333333;")
+        config_label.setStyleSheet("font-size: 18px; color: #ffffff;")
         config_layout.addWidget(config_label)
         
         # Create stacked widget for page switching

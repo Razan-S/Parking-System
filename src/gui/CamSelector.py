@@ -9,6 +9,7 @@ class CameraToggleButton(QPushButton):
         self.status = status  # "working", "error", "not_working"
         self.setCheckable(True)
         self.setFixedSize(500, 40)
+        self.setText(camera_name)  # Set the button text normally
         self.setup_style()
         
     def setup_style(self):
@@ -16,24 +17,24 @@ class CameraToggleButton(QPushButton):
             QPushButton {
                 font-size: 14px;
                 font-weight: 500;
-                color: #666666;
-                background-color: #f0f0f0;
-                border: 2px solid #cccccc;
+                color: #ffffff;
+                background-color: #2a2a2a;
+                border: 1px solid #666666;
                 border-radius: 8px;
-                padding: 8px 16px;
+                padding: 8px 50px 8px 16px;
                 text-align: left;
             }
             QPushButton:hover {
-                background-color: #e0e0e0;
-                border-color: #999999;
+                background-color: #3a3a3a;
+                border-color: #4a9eff;
             }
             QPushButton:checked {
                 color: #ffffff;
-                background-color: #007ACC;
-                border-color: #005a9e;
+                background-color: #4a9eff;
+                border-color: #3a8eef;
             }
             QPushButton:checked:hover {
-                background-color: #005a9e;
+                background-color: #3a8eef;
             }
         """)
         
@@ -43,20 +44,15 @@ class CameraToggleButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
-        # Draw camera name on the left
-        text_color = QColor("#ffffff") if self.isChecked() else QColor("#666666")
-        painter.setPen(QPen(text_color))
-        painter.drawText(16, 25, self.camera_name)
-        
-        # Draw status circle on the right
+        # Only draw status circle on the right (let QPushButton handle text)
         circle_x = self.width() - 30
         circle_y = 15
         circle_radius = 6
         
         status_colors = {
-            "working": QColor("#4CAF50"),    # Green
-            "not_working": QColor("#F44336"),   # Red
-            "error": QColor("#FF9800")      # Orange
+            "working": QColor("#00ff00"),    # Green
+            "not_working": QColor("#ff0000"),   # Red
+            "error": QColor("#ff9900")      # Orange
         }
         
         status_color = status_colors.get(self.status, QColor("#9E9E9E"))  # Default gray
@@ -89,8 +85,8 @@ class CameraSelector(QWidget):
     def init_ui(self):
         # Create main layout
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)  # Add internal padding
-        layout.setSpacing(20)  # Space between elements
+        layout.setContentsMargins(20, 5, 20, 20)  # Reduced top margin from 20 to 5
+        layout.setSpacing(15)  # Reduced spacing from 20 to 15
         
         # Add a label for the camera selector
         label = QLabel("Select Camera To Configure")
@@ -99,7 +95,7 @@ class CameraSelector(QWidget):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #000000;
+                color: #ffffff;
             }
         """)
         layout.addWidget(label)
@@ -135,16 +131,16 @@ class CameraSelector(QWidget):
                 font-size: 16px;
                 font-weight: bold;
                 color: #ffffff;
-                background-color: #007ACC;
-                border: none;
+                background-color: #4a9eff;
+                border: 1px solid #666666;
                 border-radius: 12px;
                 padding: 15px 30px;
             }
             QPushButton:hover {
-                background-color: #005a9e;
+                background-color: #3a8eef;
             }
             QPushButton:pressed {
-                background-color: #004578;
+                background-color: #2a7edf;
             }
         """)
 

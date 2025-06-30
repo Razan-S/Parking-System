@@ -10,7 +10,7 @@ class CamCard(QWidget):
     card_clicked = pyqtSignal(str)  # Signal emitted when card is clicked
     
     def __init__(self, camera_name="Unknown", camera_id="0", location="Unknown", 
-                 camera_status="error", parking_status="empty", video_source=None, card_size=(300, 350)):
+                 camera_status="error", parking_status="available", video_source=None, card_size=(320, 400)):
         super().__init__()        
         self.camera_name = camera_name
         self.camera_id = camera_id
@@ -21,27 +21,47 @@ class CamCard(QWidget):
         
         self.init_ui()
         self.setFixedSize(card_size[0], card_size[1])
-        self.setStyleSheet("""
-            QWidget {
-                border: 2px solid #000000;  
-            }
-        """)
+        # Border styling moved to container frame in init_ui()
 
 
     def init_ui(self):
-        # Main layout
-        layout = QVBoxLayout(self)
+        # Create main layout with proper margins for border
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(3, 3, 3, 3)  # Account for border width
+        main_layout.setSpacing(0)
+        
+        # Create a container frame for the border
+        container_frame = QFrame()
+        container_frame.setObjectName("CamCardContainer")
+        container_frame.setFixedSize(314, 400)  # Exact size to fit within card bounds
+        container_frame.setStyleSheet("""
+            QFrame#CamCardContainer {
+                border: 3px solid #4a9eff;
+                background-color: #1a1a1a;
+                border-radius: 12px;
+            }
+        """)
+        
+        main_layout.addWidget(container_frame)
+        
+        # Create content layout inside the container
+        layout = QVBoxLayout(container_frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Image section (200px height, rounded top corners)
+        # Calculate available width for content within the container
+        content_width = 314  # Container width
+        image_height = 220
+        content_height = 180
+        
+        # Image section (220px height, rounded top corners)
         self.image_label = QLabel()
-        self.image_label.setFixedSize(300, 200)
+        self.image_label.setFixedSize(content_width, image_height)
         self.image_label.setStyleSheet("""
             QLabel {
-                background-color: #f5f5f5;
-                border-top-left-radius: 12px;
-                border-top-right-radius: 12px;
+                background-color: #2a2a2a;
+                border-top-left-radius: 9px;
+                border-top-right-radius: 9px;
                 border: none;
             }
         """)
@@ -51,13 +71,14 @@ class CamCard(QWidget):
         # Load image or show placeholder
         self.load_image()
         layout.addWidget(self.image_label)
-          # Content section (150px height for remaining content)
+        
+        # Content section (180px height for remaining content)
         content_widget = QWidget()
-        content_widget.setFixedSize(300, 150)
-        content_widget.setStyleSheet("QWidget { border: none; }")
+        content_widget.setFixedSize(content_width, content_height)
+        content_widget.setStyleSheet("QWidget { border: none; background-color: #1a1a1a; }")
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(15, 10, 15, 10)
-        content_layout.setSpacing(8)
+        content_layout.setContentsMargins(15, 15, 15, 15)
+        content_layout.setSpacing(12)
         
         # Camera name and ID row
         name_id_layout = QHBoxLayout()
@@ -65,12 +86,12 @@ class CamCard(QWidget):
         
         name_label = QLabel(self.camera_name)
         name_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        name_label.setStyleSheet("color: #333333;")
+        name_label.setStyleSheet("color: #ffffff;")
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         id_label = QLabel(f"#{self.camera_id}")
         id_label.setFont(QFont("Arial", 12))
-        id_label.setStyleSheet("color: #666666; margin-left: 5px;")
+        id_label.setStyleSheet("color: #cccccc; margin-left: 5px;")
         
         name_id_layout.addStretch()
         name_id_layout.addWidget(name_label)
@@ -90,7 +111,7 @@ class CamCard(QWidget):
         
         location_label = QLabel(self.location)
         location_label.setFont(QFont("Arial", 11))
-        location_label.setStyleSheet("color: #666666;")
+        location_label.setStyleSheet("color: #cccccc;")
         
         location_layout.addWidget(location_icon)
         location_layout.addWidget(location_label)
@@ -104,7 +125,7 @@ class CamCard(QWidget):
         
         camera_status_label = QLabel("Camera:")
         camera_status_label.setFont(QFont("Arial", 10))
-        camera_status_label.setStyleSheet("color: #666666;")
+        camera_status_label.setStyleSheet("color: #cccccc;")
         
         camera_status_circle = QLabel()
         camera_status_circle.setFixedSize(12, 12)
@@ -112,7 +133,7 @@ class CamCard(QWidget):
         
         camera_status_text = QLabel(self.get_status_text(self.camera_status))
         camera_status_text.setFont(QFont("Arial", 10))
-        camera_status_text.setStyleSheet("color: #333333; margin-left: 5px;")
+        camera_status_text.setStyleSheet("color: #ffffff; margin-left: 5px;")
         
         camera_status_layout.addWidget(camera_status_label)
         camera_status_layout.addWidget(camera_status_circle)
@@ -127,7 +148,7 @@ class CamCard(QWidget):
         
         parking_status_label = QLabel("Parking:")
         parking_status_label.setFont(QFont("Arial", 10))
-        parking_status_label.setStyleSheet("color: #666666;")
+        parking_status_label.setStyleSheet("color: #cccccc;")
         
         parking_status_circle = QLabel()
         parking_status_circle.setFixedSize(12, 12)
@@ -135,7 +156,7 @@ class CamCard(QWidget):
         
         parking_status_text = QLabel(self.get_parking_status_text(self.parking_status))
         parking_status_text.setFont(QFont("Arial", 10))
-        parking_status_text.setStyleSheet("color: #333333; margin-left: 5px;")
+        parking_status_text.setStyleSheet("color: #ffffff; margin-left: 5px;")
         
         parking_status_layout.addWidget(parking_status_label)
         parking_status_layout.addWidget(parking_status_circle)
@@ -171,7 +192,7 @@ class CamCard(QWidget):
             
             # Convert QImage to QPixmap
             pixmap = QPixmap.fromImage(q_image)
-            scaled_pixmap = pixmap.scaled(300, 200, Qt.AspectRatioMode.KeepAspectRatioByExpanding, 
+            scaled_pixmap = pixmap.scaled(314, 220, Qt.AspectRatioMode.KeepAspectRatioByExpanding, 
                                         Qt.TransformationMode.SmoothTransformation)
             self.image_label.setPixmap(scaled_pixmap)
         else:
@@ -179,11 +200,11 @@ class CamCard(QWidget):
             self.image_label.setText("📷\nNo Image")
             self.image_label.setStyleSheet("""
                 QLabel {
-                    background-color: #f5f5f5;
-                    border-top-left-radius: 12px;
-                    border-top-right-radius: 12px;
+                    background-color: #2a2a2a;
+                    border-top-left-radius: 9px;
+                    border-top-right-radius: 9px;
                     border: none;
-                    color: #999999;
+                    color: #ffffff;
                     font-size: 24px;
                 }
             """)
@@ -191,9 +212,9 @@ class CamCard(QWidget):
     def get_status_circle_style(self, status):
         """Get CSS style for camera status circle"""
         colors = {
-            "working": "#4CAF50",      # Green
-            "not_working": "#F44336",  # Red
-            "error": "#FF9800"         # Orange
+            "working": "#00ff00",      # Green
+            "not_working": "#ff0000",  # Red
+            "error": "#ff9900"         # Orange
         }
         color = colors.get(status, "#9E9E9E")  # Default gray
         return f"""
@@ -207,9 +228,9 @@ class CamCard(QWidget):
     def get_parking_status_circle_style(self, status):
         """Get CSS style for parking status circle"""
         colors = {
-            "available": "#4CAF50",    # Green
-            "occupied": "#F44336",     # Red
-            "unknown": "#FF9800"       # Orange
+            "available": "#00ff00",    # Green
+            "occupied": "#ff0000",     # Red
+            "unknown": "#ff9900"       # Orange
         }
         color = colors.get(status, "#9E9E9E")  # Default gray
         return f"""
@@ -274,7 +295,7 @@ class CamCardFrame(QWidget):
     card_clicked = pyqtSignal(str)  # Signal emitted when a camera card is clicked
 
     """Custom frame to hold CamCard with rounded corners"""
-    def __init__(self, cards_per_row=2, card_size=(300, 350)):
+    def __init__(self, cards_per_row=2, card_size=(320, 400)):
         super().__init__()
         self.ROOT_DIR = os.path.abspath(os.curdir)
         self.IMAGE_DIR = os.path.join(self.ROOT_DIR, "image")
@@ -291,8 +312,9 @@ class CamCardFrame(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        self.setStyleSheet("QWidget { background-color: #1a1a1a; }")
         self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(10)
+        self.main_layout.setSpacing(5)  # Reduced spacing from 10 to 5
 
         label = QLabel("Camera Monitor Cards")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -300,7 +322,9 @@ class CamCardFrame(QWidget):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #000000;
+                color: #ffffff;
+                margin-top: 5px;
+                margin-bottom: 5px;
             }
         """)
 
@@ -310,18 +334,48 @@ class CamCardFrame(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # Set proper size policy for scroll area
+        from PyQt6.QtWidgets import QSizePolicy
+        self.scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.scroll_area.setStyleSheet("""
             QScrollArea {
-                border: none;
+                border: 1px solid #666666;
+                border-radius: 8px;
                 background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #1a1a1a;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #4a9eff;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #3a8eef;
+            }
+            QScrollBar:horizontal {
+                background-color: #1a1a1a;
+                height: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #4a9eff;
+                border-radius: 6px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #3a8eef;
             }
         """)
         
         # Add the camera cards
         self.add_camera_cards()
         
-        # Add scroll area to main layout
-        self.main_layout.addWidget(self.scroll_area)
+        # Add scroll area to main layout (removed minimum height)
+        self.main_layout.addWidget(self.scroll_area, 1)  # Give it stretch factor
 
     def add_camera_cards(self):
         """Add camera cards in a scrollable area"""
@@ -331,9 +385,12 @@ class CamCardFrame(QWidget):
         
         # Create content widget for cards
         content_widget = QWidget()
+        content_widget.setStyleSheet("QWidget { background-color: #1a1a1a; }")
+        from PyQt6.QtWidgets import QSizePolicy
+        content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(20)
-        content_layout.setContentsMargins(20, 20, 20, 20)
+        content_layout.setSpacing(30)
+        content_layout.setContentsMargins(30, 30, 30, 30)
         
         # Create rows for cards
         current_row_layout = None
@@ -342,7 +399,7 @@ class CamCardFrame(QWidget):
             # Create new row layout if needed
             if i % self.cards_per_row == 0:
                 current_row_layout = QHBoxLayout()
-                current_row_layout.setSpacing(20)
+                current_row_layout.setSpacing(30)
                 content_layout.addLayout(current_row_layout)
             
             # Create camera card

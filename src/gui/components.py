@@ -18,9 +18,10 @@ class VideoFrameWidget(QLabel):
         self.setMinimumSize(800, 600)
         self.setStyleSheet("""
             QLabel {
-                background-color: #404040;
-                border: 2px solid #555;
+                background-color: #2a2a2a;
+                border: 1px solid #666666;
                 border-radius: 8px;
+                color: #ffffff;
             }
         """)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -142,7 +143,7 @@ class VideoFrameWidget(QLabel):
         self.saved_polygons[polygon_id] = {
             'coordinates': coordinates,
             'type': 'existing',
-            'color': (255, 165, 0)  # Orange color for existing
+            'color': (255, 153, 0)  # Orange color for existing
         }
         self.update_display()
     
@@ -178,8 +179,8 @@ class CoordinateCard(QFrame):
     def setup_ui(self):
         self.setStyleSheet("""
             QFrame {
-                background: #3a3a3a;
-                border: 1px solid #555;
+                background: #1a1a1a;
+                border: 1px solid #666666;
                 border-radius: 8px;
                 margin: 5px;
                 padding: 10px;
@@ -196,7 +197,7 @@ class CoordinateCard(QFrame):
         title = QLabel(f"Frame {self.frame_id}")
         title.setStyleSheet("""
             QLabel {
-                color: #0d7377;
+                color: #4a9eff;
                 font-weight: bold;
                 font-size: 14px;
                 margin-bottom: 5px;
@@ -221,7 +222,7 @@ class CoordinateCard(QFrame):
         coords_label = QLabel(coords_text.strip())
         coords_label.setStyleSheet("""
             QLabel {
-                color: #e0e0e0;
+                color: #ffffff;
                 font-size: 12px;
                 font-family: 'Consolas', 'Monaco', monospace;
             }
@@ -245,59 +246,64 @@ class DarkButton(QPushButton):
         if self.danger:
             self.setStyleSheet("""
                 QPushButton {
-                    background: #dc3545;
+                    background: #ff0000;
                     color: white;
-                    border: none;
+                    border: 1px solid #666666;
                     border-radius: 6px;
                     font-weight: bold;
                     font-size: 13px;
                 }
                 QPushButton:hover {
-                    background: #e85a6b;
+                    background: #cc0000;
                 }
                 QPushButton:pressed {
-                    background: #c82333;
+                    background: #990000;
                 }
                 QPushButton:disabled {
-                    background: #555;
-                    color: #888;
+                    background: #666666;
+                    color: #999999;
                 }
             """)
         elif self.primary:
             self.setStyleSheet("""
                 QPushButton {
-                    background: #0d7377;
+                    background: #4a9eff;
                     color: white;
-                    border: none;
+                    border: 1px solid #666666;
                     border-radius: 6px;
                     font-weight: bold;
                     font-size: 13px;
                 }
                 QPushButton:hover {
-                    background: #14a085;
+                    background: #3a8eef;
                 }
                 QPushButton:pressed {
-                    background: #0a5d61;
+                    background: #2a7edf;
                 }
                 QPushButton:disabled {
-                    background: #555;
-                    color: #888;
+                    background: #666666;
+                    color: #999999;
                 }
             """)
         else:
             self.setStyleSheet("""
                 QPushButton {
-                    background: #404040;
-                    color: #e0e0e0;
-                    border: 1px solid #555;
+                    background: #2a2a2a;
+                    color: #ffffff;
+                    border: 1px solid #666666;
                     border-radius: 6px;
                     font-size: 13px;
                 }
                 QPushButton:hover {
-                    background: #4a4a4a;
-                    border-color: #666;
+                    background: #3a3a3a;
+                    border-color: #4a9eff;
                 }
                 QPushButton:pressed {
-                    background: #363636;
+                    background: #1a1a1a;
+                }
+                QPushButton:disabled {
+                    background: #666666;
+                    color: #999999;
+                    border-color: #999999;
                 }
             """)

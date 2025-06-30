@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
 from src.gui.CamSelector import CameraSelector
 from src.gui.CamCard import CamCardFrame
 from src.config.utils import CameraConfigManager
-from src.CardManager import CardManager
+from src.CameraManager import CameraManager
 import os
 
 class Dashboard(QWidget):
@@ -32,7 +32,7 @@ class Dashboard(QWidget):
         self.setGeometry(0, 0, 1400, 800)
         self.setStyleSheet("""
             QWidget {
-                background-color: #ffffff;
+                background-color: #1a1a1a;
             }
         """)
 

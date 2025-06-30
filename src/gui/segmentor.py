@@ -47,8 +47,10 @@ class RoadSegmenterGUI(QMainWindow):
     def init_ui(self):
         self.setWindowTitle("Road Segmenter")
         self.setGeometry(0, 0, 1400, 800)
+        self.setStyleSheet("QMainWindow { background-color: #1a1a1a; }")
         
         central_widget = QWidget()
+        central_widget.setStyleSheet("QWidget { background-color: #1a1a1a; }")
         self.setCentralWidget(central_widget)
         
         main_layout = QHBoxLayout(central_widget)
@@ -169,9 +171,9 @@ class RoadSegmenterGUI(QMainWindow):
         self.back_btn = DarkButton("Back")
         self.back_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                color: #000000;
-                border: 1px solid #CCCCCC;
+                background-color: #2a2a2a;
+                color: #ffffff;
+                border: 1px solid #666666;
                 border-radius: 5px;
                 padding: 8px 16px;
                 font-size: 12px;
@@ -180,10 +182,11 @@ class RoadSegmenterGUI(QMainWindow):
                 min-height: 25px;
             }
             QPushButton:hover {
-                background-color: #F0F0F0;
+                background-color: #3a3a3a;
+                border-color: #4a9eff;
             }
             QPushButton:pressed {
-                background-color: #E0E0E0;
+                background-color: #1a1a1a;
             }
         """)
         self.back_btn.clicked.connect(self.go_back_to_dashboard)
@@ -193,9 +196,9 @@ class RoadSegmenterGUI(QMainWindow):
         self.add_frame_btn = DarkButton("Add Frame")
         self.add_frame_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                color: #000000;
-                border: 1px solid #CCCCCC;
+                background-color: #4a9eff;
+                color: #ffffff;
+                border: 1px solid #666666;
                 border-radius: 5px;
                 padding: 8px 16px;
                 font-size: 12px;
@@ -204,14 +207,15 @@ class RoadSegmenterGUI(QMainWindow):
                 min-height: 25px;
             }
             QPushButton:hover {
-                background-color: #F0F0F0;
+                background-color: #3a8eef;
             }
             QPushButton:pressed {
-                background-color: #E0E0E0;
+                background-color: #2a7edf;
             }
             QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #888888;
+                background-color: #666666;
+                color: #999999;
+                border-color: #999999;
             }
         """)
         self.add_frame_btn.clicked.connect(self.add_frame)
@@ -222,9 +226,9 @@ class RoadSegmenterGUI(QMainWindow):
         self.clear_btn = DarkButton("Clear points")
         self.clear_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                color: #000000;
-                border: 1px solid #CCCCCC;
+                background-color: #ff0000;
+                color: #ffffff;
+                border: 1px solid #666666;
                 border-radius: 5px;
                 padding: 8px 16px;
                 font-size: 12px;
@@ -233,14 +237,15 @@ class RoadSegmenterGUI(QMainWindow):
                 min-height: 25px;
             }
             QPushButton:hover {
-                background-color: #F0F0F0;
+                background-color: #cc0000;
             }
             QPushButton:pressed {
-                background-color: #E0E0E0;
+                background-color: #990000;
             }
             QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #888888;
+                background-color: #666666;
+                color: #999999;
+                border-color: #999999;
             }
         """)
         self.clear_btn.clicked.connect(self.clear_coordinates)
@@ -251,8 +256,8 @@ class RoadSegmenterGUI(QMainWindow):
         clock_frame = QFrame()
         clock_frame.setStyleSheet("""
             QFrame {
-                background-color: #2a2a2a;
-                border: 1px solid #404040;
+                background-color: #1a1a1a;
+                border: 1px solid #666666;
                 border-radius: 5px;
                 padding: 5px;
                 min-height: 90px;
@@ -267,7 +272,7 @@ class RoadSegmenterGUI(QMainWindow):
         clock_label.setStyleSheet("""
             QLabel {
                 font-size: 10px;
-                color: #CCCCCC;
+                color: #ffffff;
                 border: none;
                 background: transparent;
                 padding: 2px;
@@ -283,7 +288,7 @@ class RoadSegmenterGUI(QMainWindow):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #FFFFFF;
+                color: #4a9eff;
                 border: none;
                 background: transparent;
                 padding: 2px;
@@ -298,7 +303,7 @@ class RoadSegmenterGUI(QMainWindow):
         self.date_label.setStyleSheet("""
             QLabel {
                 font-size: 10px;
-                color: #CCCCCC;
+                color: #ffffff;
                 border: none;
                 background: transparent;
                 padding: 2px;
@@ -320,7 +325,7 @@ class RoadSegmenterGUI(QMainWindow):
             QLabel {
                 font-size: 12px;
                 font-weight: bold;
-                color: #FFFFFF;
+                color: #4a9eff;
                 margin-top: 15px;
                 margin-bottom: 5px;
             }
@@ -335,20 +340,21 @@ class RoadSegmenterGUI(QMainWindow):
         scroll.setStyleSheet("""
             QScrollArea {
                 background: transparent;
-                border: none;
+                border: 1px solid #666666;
+                border-radius: 8px;
             }
             QScrollBar:vertical {
-                background-color: #2a2a2a;
+                background-color: #1a1a1a;
                 width: 12px;
                 border-radius: 6px;
             }
             QScrollBar::handle:vertical {
-                background-color: #555555;
+                background-color: #4a9eff;
                 border-radius: 6px;
                 min-height: 20px;
             }
             QScrollBar::handle:vertical:hover {
-                background-color: #777777;
+                background-color: #3a8eef;
             }
         """)
         
@@ -366,9 +372,9 @@ class RoadSegmenterGUI(QMainWindow):
         self.new_shot_btn = DarkButton("New Shot")
         self.new_shot_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                color: #000000;
-                border: 1px solid #CCCCCC;
+                background-color: #4a9eff;
+                color: #ffffff;
+                border: 1px solid #666666;
                 border-radius: 5px;
                 padding: 8px 16px;
                 font-size: 12px;
@@ -377,10 +383,10 @@ class RoadSegmenterGUI(QMainWindow):
                 min-height: 25px;
             }
             QPushButton:hover {
-                background-color: #F0F0F0;
+                background-color: #3a8eef;
             }
             QPushButton:pressed {
-                background-color: #E0E0E0;
+                background-color: #2a7edf;
             }
         """)
         self.new_shot_btn.clicked.connect(self.take_new_shot)
@@ -390,9 +396,9 @@ class RoadSegmenterGUI(QMainWindow):
         self.stop_detect_btn = DarkButton("Stop Detect")
         self.stop_detect_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                color: #000000;
-                border: 1px solid #CCCCCC;
+                background-color: #ff0000;
+                color: #ffffff;
+                border: 1px solid #666666;
                 border-radius: 5px;
                 padding: 8px 16px;
                 font-size: 12px;
@@ -401,10 +407,10 @@ class RoadSegmenterGUI(QMainWindow):
                 min-height: 25px;
             }
             QPushButton:hover {
-                background-color: #F0F0F0;
+                background-color: #cc0000;
             }
             QPushButton:pressed {
-                background-color: #E0E0E0;
+                background-color: #990000;
             }
         """)
         self.stop_detect_btn.clicked.connect(self.stop_detection)
@@ -414,9 +420,9 @@ class RoadSegmenterGUI(QMainWindow):
         self.submit_btn = DarkButton("Submit")
         self.submit_btn.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                color: #000000;
-                border: 1px solid #CCCCCC;
+                background-color: #4a9eff;
+                color: #ffffff;
+                border: 1px solid #666666;
                 border-radius: 5px;
                 padding: 8px 16px;
                 font-size: 12px;
@@ -425,14 +431,15 @@ class RoadSegmenterGUI(QMainWindow):
                 min-height: 25px;
             }
             QPushButton:hover {
-                background-color: #F0F0F0;
+                background-color: #3a8eef;
             }
             QPushButton:pressed {
-                background-color: #E0E0E0;
+                background-color: #2a7edf;
             }
             QPushButton:disabled {
-                background-color: #CCCCCC;
-                color: #888888;
+                background-color: #666666;
+                color: #999999;
+                border-color: #999999;
             }
         """)
         self.submit_btn.clicked.connect(self.submit_all_frames)
@@ -445,9 +452,9 @@ class RoadSegmenterGUI(QMainWindow):
         panel = QFrame()
         panel.setStyleSheet("""
             QFrame {
-                background-color: #333;
+                background-color: #1a1a1a;
                 border-radius: 8px;
-                border: 1px solid #555;
+                border: 1px solid #666666;
             }
         """)
         
