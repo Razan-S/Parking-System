@@ -1,4 +1,65 @@
 from shapely.geometry import Polygon, LinearRing
+from src.config.utils import CameraConfigManager
+import cv2 as cv
+
+def capture_video(camera_id):
+    """
+    Capture video from a camera using OpenCV.
+    
+    Args:
+        camera_id (str): The ID of the camera to capture from.
+    
+    Returns:
+        VideoCapture: OpenCV VideoCapture object for the camera.
+    """
+    camM = CameraConfigManager()
+    camera = camM.get_camera_by_id(camera_id)
+    if not camera:
+        raise ValueError(f"Camera with ID {camera_id} not found.")
+    
+    video_source = camera.get("video_source", 0)  # Default to 0 if not specified
+    
+    cap = cv.VideoCapture(video_source)
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video source: {video_source}")
+    
+    try:
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                print("Failed to read frame from video source")
+                break
+                
+            cv.imshow('Camera Feed - Press q to quit', frame)
+            if cv.waitKey(20) & 0xFF == ord('q'):
+                break
+    
+    finally:
+        cap.release()
+        cv.destroyAllWindows()
+
+def capture_one_frame(camera_id):
+    camM = CameraConfigManager()
+    camera = camM.get_camera_by_id(camera_id)
+    if not camera:
+        raise ValueError(f"Camera with ID {camera_id} not found.")
+    
+    video_source = camera.get("video_source", 0)  # Default to 0 if not specified
+
+    cap = cv.VideoCapture(video_source)
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video source: {video_source}")
+    
+    ret, frame = cap.read()
+    if not ret:
+        print("Failed to read frame from video source")
+        return None
+        
+    cv.imshow('Camera Feed - Press any key to close', frame)
+    cv.waitKey(0)  # Wait for a key press
+    cv.destroyAllWindows()  # Close the window
+    
+    return frame
 
 def is_valid_polygon(coordinates, min_points=3, min_area=10):
     """
