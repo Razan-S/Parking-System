@@ -5,18 +5,20 @@ import cv2 as cv
 import os
 
 from src.config.utils import CameraConfigManager
+from src.enums import ParkingStatus, CameraStatus
 
 class CamCard(QWidget):
     card_clicked = pyqtSignal(str)  # Signal emitted when card is clicked
     
     def __init__(self, camera_name="Unknown", camera_id="0", location="Unknown", 
-                 camera_status="error", parking_status="available", video_source=None, card_size=(320, 400)):
+                 camera_status=CameraStatus.ERROR.value, parking_status=ParkingStatus.AVAILABLE.value, 
+                 video_source=None, card_size=(350, 400)):
         super().__init__()        
         self.camera_name = camera_name
         self.camera_id = camera_id
         self.location = location
-        self.camera_status = camera_status  # "working", "not_working", "error"
-        self.parking_status = parking_status  # "available", "occupied", "unknown"
+        self.camera_status = camera_status  # CameraStatus enum values
+        self.parking_status = parking_status  # ParkingStatus enum values
         self.video_source = video_source
         
         self.init_ui()
@@ -212,9 +214,9 @@ class CamCard(QWidget):
     def get_status_circle_style(self, status):
         """Get CSS style for camera status circle"""
         colors = {
-            "working": "#00ff00",      # Green
-            "not_working": "#ff0000",  # Red
-            "error": "#ff9900"         # Orange
+            CameraStatus.WORKING.value: "#00ff00",      # Green
+            CameraStatus.NOT_WORKING.value: "#ff0000",  # Red
+            CameraStatus.ERROR.value: "#ff9900"         # Orange
         }
         color = colors.get(status, "#9E9E9E")  # Default gray
         return f"""
@@ -228,9 +230,9 @@ class CamCard(QWidget):
     def get_parking_status_circle_style(self, status):
         """Get CSS style for parking status circle"""
         colors = {
-            "available": "#00ff00",    # Green
-            "occupied": "#ff0000",     # Red
-            "unknown": "#ff9900"       # Orange
+            ParkingStatus.AVAILABLE.value: "#00ff00",    # Green
+            ParkingStatus.OCCUPIED.value: "#ff0000",     # Red
+            ParkingStatus.UNKNOWN.value: "#ff9900"       # Orange
         }
         color = colors.get(status, "#9E9E9E")  # Default gray
         return f"""
@@ -244,18 +246,18 @@ class CamCard(QWidget):
     def get_status_text(self, status):
         """Get display text for camera status"""
         texts = {
-            "working": "Working",
-            "not_working": "Not Working",
-            "error": "Error"
+            CameraStatus.WORKING.value: "Working",
+            CameraStatus.NOT_WORKING.value: "Not Working",
+            CameraStatus.ERROR.value: "Error"
         }
         return texts.get(status, "Unknown")
     
     def get_parking_status_text(self, status):
         """Get display text for parking status"""
         texts = {
-            "available": "Available",
-            "occupied": "Car Parking",
-            "unknown": "Unknown"
+            ParkingStatus.AVAILABLE.value: "Available",
+            ParkingStatus.OCCUPIED.value: "Car Parking",
+            ParkingStatus.UNKNOWN.value: "Unknown"
         }
         return texts.get(status, "Unknown")
     
@@ -428,6 +430,19 @@ class CamCardFrame(QWidget):
         
         # Set scroll area content
         self.scroll_area.setWidget(content_widget)
+
+    def update_camera_cards(self):
+        """Update camera cards with latest data"""
+        self.cameras = self.config_manager.get_all_cameras()
+        
+        # Clear existing cards
+        for i in reversed(range(self.scroll_area.widget().layout().count())):
+            item = self.scroll_area.widget().layout().itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
+        
+        # Re-add camera cards
+        self.add_camera_cards()
 
     def on_camera_card_clicked(self, camera_id):
         """Handle camera card click events"""

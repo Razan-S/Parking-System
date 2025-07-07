@@ -1,8 +1,10 @@
 from ultralytics import YOLO
+from PyQt6.QtCore import QRunnable, pyqtSlot
 import numpy as np
 from shapely.geometry import Polygon, box
+from src.enums import ParkingStatus
 
-class DetectionModule:
+class DetectionModule(QRunnable):
     def __init__(self):
         try:
             self.model = YOLO("yolo12n.engine", task="detect", verbose=True)
@@ -16,7 +18,8 @@ class DetectionModule:
             print(f"Error initializing model: {e}")
             self.model = None
 
-    def detect(self, frame: np.ndarray, coordinates: list) -> bool:
+    @pyqtSlot()
+    def run(self, frame: np.ndarray, coordinates: list) -> ParkingStatus:
         """
         Detect objects in the given frame and check if they intersect with specified regions.
 
@@ -26,11 +29,11 @@ class DetectionModule:
                 [{"id": 1, "coordinates": [[x1, y1], [x2, y2], ...]}, ...]
 
         Returns:
-            list: List of detected objects that intersect with specified regions with id.
+            ParkingStatus: Enum indicating the parking status (AVAILABLE, OCCUPIED, UNKNOWN).
         """
         if self.model is None:
             print("Model not loaded properly.")
-            return False
+            return ParkingStatus.UNKNOWN.value
 
         try:
             results = self.model(frame, verbose=False)
@@ -43,10 +46,12 @@ class DetectionModule:
                 if not poly.is_valid:
                     print(f"Warning: Invalid polygon for region ID {region['id']}")
                     continue
-                region_polygons.append({"id":region['id'], "coordinates":poly})
+                region_polygons.append({"id": region['id'], "coordinates": poly})
 
-            result = []
-            # Check each detection
+            # Check if any detection intersects with any region
+            overall_status = ParkingStatus.AVAILABLE.value
+            
+            # Check each detection against all regions
             for det_box in detections:
                 x1, y1, x2, y2 = det_box
                 det_poly = box(x1, y1, x2, y2)  # Convert to shapely box (polygon)
@@ -54,10 +59,10 @@ class DetectionModule:
                 # Check intersection with all regions
                 for region_poly in region_polygons:
                     if det_poly.intersects(region_poly["coordinates"]):
-                        result.append({"id":region_poly['id'], "detect":True}) # Found an intersection
-                    else:
-                        result.append({"id":region_poly['id'], "detect":False})
+                        return ParkingStatus.OCCUPIED.value
+                    
+            return ParkingStatus.AVAILABLE.value
 
         except Exception as e:
             print(f"Error during detection: {e}")
-            return [ {"id": region["id"], "detect": False} for region in coordinates ]
+            return ParkingStatus.UNKNOWN.value

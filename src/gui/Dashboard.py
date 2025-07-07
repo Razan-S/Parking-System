@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
 from src.gui.CamSelector import CameraSelector
 from src.gui.CamCard import CamCardFrame
 from src.config.utils import CameraConfigManager
-from src.CameraManager import CameraManager
+# from src.CameraManager import CameraManager
 import os
 
 class Dashboard(QWidget):
