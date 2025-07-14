@@ -1,7 +1,8 @@
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox, QHBoxLayout, QPushButton, QDialog, QDialog
 from src.gui.CamSelector import CameraSelector
 from src.gui.CamCard import CamCardFrame
+from src.gui.ConfigPopup import ConfigPopup
 from src.config.utils import CameraConfigManager
 from src.CameraManager import CameraManager
 from src.enums import CameraStatus, ParkingStatus
@@ -59,18 +60,57 @@ class Dashboard(QWidget):
     def setup_dashboard_ui(self):
         """Setup the complete dashboard UI with both camera selector and cards"""
         
-        # First add the camera selector at the top
+        # Add the camera selector
         self.add_camera_selector()
-        # Then add the camera cards below
+        # Add the camera cards below
         self.add_camera_cards()
+        # Add config button as overlay (last so it's on top)
+        self.add_config_button()
+
+    def add_config_button(self):
+        """Add the configuration button as an overlay at the top right"""
+        # Create config button with absolute positioning
+        self.config_button = QPushButton("⚙️", self)
+        self.config_button.setToolTip("Configure Cameras")
+        self.config_button.clicked.connect(self.show_config_popup)
+        self.config_button.setFixedSize(30, 30)  # Small square button
+        self.config_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3a3a3a;
+                border: 1px solid #5a5a5a;
+                border-radius: 15px;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #4a4a4a;
+                border-color: #6a6a6a;
+            }
+            QPushButton:pressed {
+                background-color: #2a2a2a;
+            }
+        """)
+        
+        # Position the button at top right corner
+        self.config_button.move(self.width() - 50, 20)  # 50px from right, 20px from top
+        self.config_button.raise_()  # Bring to front
+
+    def resizeEvent(self, event):
+        """Handle window resize to reposition the config button"""
+        super().resizeEvent(event)
+        if hasattr(self, 'config_button'):
+            # Reposition the button at top right corner
+            self.config_button.move(self.width() - 50, 20)
 
     def add_camera_selector(self):
-        """Add the camera selector widget at the top"""
+        """Add the camera selector widget"""
         # Create camera selector
         self.camera_selector = CameraSelector()
         self.camera_selector.camera_selected.connect(lambda: self.change_to_config_page(self.camera_selector.get_selected_camera()))
         self.camera_selector.camera_changed.connect(self.on_camera_selection_changed)
-          # Add to layout
+        
+        # Add to layout
         self.main_layout.addWidget(self.camera_selector)
 
     def add_camera_cards(self):
@@ -234,3 +274,13 @@ class Dashboard(QWidget):
     def __del__(self):
         """Destructor to ensure cleanup"""
         self.cleanup()
+
+    def show_config_popup(self):
+        """Show the camera configuration popup"""
+        config_popup = ConfigPopup()
+        result = config_popup.exec()
+        
+        # If user clicked OK or Apply, refresh the dashboard
+        if result == QDialog.DialogCode.Accepted:
+            self.refresh_camera_data()
+            self.refresh_camera_cards()
