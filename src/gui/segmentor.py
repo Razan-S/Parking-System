@@ -25,6 +25,7 @@ class RoadSegmenterGUI(QMainWindow):
 
         # Initialize all attributes first
         self.video_path = None
+        self.image_path = self.camera.get('image_path', None) if self.camera else None
         self.current_coordinates = []
         self.frame_counter = 1
         self.saved_frames = []
@@ -80,6 +81,7 @@ class RoadSegmenterGUI(QMainWindow):
             return
         
         self.video_path = camera.get('video_source', None)
+        self.image_path = camera.get('image_path', None)
         existing_zones = camera.get('detection_zones', [])
 
         # Only init UI if not already initialized
@@ -92,36 +94,30 @@ class RoadSegmenterGUI(QMainWindow):
         self.load_existing_detection_zones(existing_zones)
 
     def load_single_frame(self):
-        """Load only the first frame from the camera using camera manager"""
+        """Load the current image from camera configuration"""
         try:
-            if self.camera_manager and self.camera_id:
-                print(f"Loading frame using camera manager for {self.camera_id}")
-                self.request_frame_from_camera_manager()
-            else:
-                print("Camera manager not available, falling back to direct capture")
-                # Fallback to direct video capture if camera manager not available
-                if not self.video_path:
-                    print("No video path available")
-                    return
-                    
-                self.cap = cv.VideoCapture(self.video_path)
-                if not self.cap.isOpened():
-                    print(f"Error: Could not open video file: {self.video_path}")
+            if not self.image_path:
+                if not self.camera_id and not self.camera:
+                    QMessageBox.warning(self, "No Image Source", "No image source set for the camera.")
                     return
                 
-                # Read only the first frame
-                ret, frame = self.cap.read()
-                if ret and frame is not None:
-                    self.video_widget.set_frame(frame)
+                self.image_path = self.camera.get('image_path', None)
+
+            print(f"Loading image from path: {self.image_path}")
+            frame = cv.imread(self.image_path)
+            if frame is None:
+                QMessageBox.warning(self, "Image Load Error", "Failed to load image from the specified path.")
+                return
+                
+            # Display the frame
+            if hasattr(self, 'video_widget') and self.video_widget:
+                self.video_widget.set_frame(frame)
+                if hasattr(self, 'clear_btn'):
                     self.clear_btn.setEnabled(True)
-                    self.last_frame_time = datetime.now()
-                    self.update_clock()
-                else:
-                    print("Could not read first frame")
-                
-                # Close video capture to free resources
-                self.cap.release()
-                self.cap = None
+                self.last_frame_time = datetime.now()
+                self.update_clock()
+            else:
+                print("Video widget not available")
                 
         except Exception as e:
             print(f"Error loading frame: {e}")
@@ -405,30 +401,6 @@ class RoadSegmenterGUI(QMainWindow):
         self.new_shot_btn.clicked.connect(self.take_new_shot)
         layout.addWidget(self.new_shot_btn)
         
-        # Stop Detect button
-        self.stop_detect_btn = DarkButton("Stop Detect")
-        self.stop_detect_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ff0000;
-                color: #ffffff;
-                border: 1px solid #666666;
-                border-radius: 5px;
-                padding: 8px 16px;
-                font-size: 12px;
-                font-weight: bold;
-                text-align: center;
-                min-height: 25px;
-            }
-            QPushButton:hover {
-                background-color: #cc0000;
-            }
-            QPushButton:pressed {
-                background-color: #990000;
-            }
-        """)
-        self.stop_detect_btn.clicked.connect(self.stop_detection)
-        layout.addWidget(self.stop_detect_btn)
-        
         # Submit button
         self.submit_btn = DarkButton("Submit")
         self.submit_btn.setStyleSheet("""
@@ -694,31 +666,19 @@ class RoadSegmenterGUI(QMainWindow):
             self.date_label.setText("-- --- ----")
     
     def take_new_shot(self):
-        """Take a new shot from the camera using camera manager"""
+        """Take a new shot by refreshing the current image from configuration"""
         if not self.camera_id:
             QMessageBox.warning(self, "No Camera", "No camera selected for new shot.")
             return
         
-        if self.waiting_for_frame:
-            QMessageBox.information(self, "Please Wait", "Already requesting a frame. Please wait...")
-            return
-        
-        # Clear current coordinates and frame
+        # Clear current coordinates
         self.clear_coordinates()
         
-        # Request a new frame from camera manager
-        if self.camera_manager:
-            print("Taking new shot using camera manager")
-            self.request_frame_from_camera_manager()
-            QMessageBox.information(self, "New Shot", "Requesting new frame from camera...")
-        else:
-            # Fallback to direct capture
-            if not self.video_path:
-                QMessageBox.warning(self, "No Video Source", "No video source available for new shot.")
-                return
-            
-            self.load_single_frame()
-            QMessageBox.information(self, "New Shot", "New frame captured successfully!")
+        # Simply reload the current frame from configuration
+        # The camera manager updates the image_source every 5 seconds
+        self.load_single_frame()
+        
+        QMessageBox.information(self, "New Shot", "Frame refreshed successfully!")
     
     def stop_detection(self):
         """Stop detection functionality - placeholder for future implementation"""
@@ -727,12 +687,9 @@ class RoadSegmenterGUI(QMainWindow):
         pass
 
     def set_camera_manager(self, camera_manager):
-        """Set the camera manager for getting frames"""
+        """Set the camera manager reference (kept for compatibility)"""
         self.camera_manager = camera_manager
-        if self.camera_manager:
-            # Connect to frame ready signal
-            self.camera_manager.frame_ready.connect(self.on_frame_received)
-            print("Camera manager connected to segmentor")
+        print("Camera manager reference set in segmentor")
     
     def on_frame_received(self, camera_id: str, frame):
         """Handle frame received from camera manager"""

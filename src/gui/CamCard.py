@@ -429,6 +429,7 @@ class CamCardFrame(QWidget):
 
     def update_camera_cards(self):
         """Update camera cards with latest data"""
+        self.config_manager.load_config()
         self.cameras = self.config_manager.get_all_cameras()
         
         # Clear existing cards
