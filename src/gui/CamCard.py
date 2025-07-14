@@ -11,8 +11,8 @@ class CamCard(QWidget):
     card_clicked = pyqtSignal(str)  # Signal emitted when card is clicked
     
     def __init__(self, camera_name="Unknown", camera_id="0", location="Unknown", 
-                 camera_status=CameraStatus.ERROR.value, parking_status=ParkingStatus.AVAILABLE.value, 
-                 video_source=None, card_size=(350, 400)):
+                 camera_status=CameraStatus.ERROR.value, parking_status=ParkingStatus.UNKNOWN.value, 
+                 video_source=None, image_path=None, card_size=(350, 400)):
         super().__init__()        
         self.camera_name = camera_name
         self.camera_id = camera_id
@@ -20,11 +20,11 @@ class CamCard(QWidget):
         self.camera_status = camera_status  # CameraStatus enum values
         self.parking_status = parking_status  # ParkingStatus enum values
         self.video_source = video_source
+        self.image_path = image_path  # Path to the latest saved image
         
         self.init_ui()
         self.setFixedSize(card_size[0], card_size[1])
         # Border styling moved to container frame in init_ui()
-
 
     def init_ui(self):
         # Create main layout with proper margins for border
@@ -171,45 +171,40 @@ class CamCard(QWidget):
         
     def load_image(self):
         """Load camera image or show placeholder"""
-        if self.video_source and os.path.exists(self.video_source):
-            cap = cv.VideoCapture(self.video_source)
-            if not cap.isOpened():
-                QMessageBox.warning(self, "Error", f"Could not open video source: {self.video_source}")
-                return
-            
-            ret, frame = cap.read()
-            cap.release()  # Don't forget to release the capture
-            
-            if not ret:
-                QMessageBox.warning(self, "Error", "Could not read frame from video source.")
-                return
-            
-            # Convert BGR to RGB (OpenCV uses BGR, Qt uses RGB)
-            rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-            
-            # Convert to QImage
-            height, width, channels = rgb_frame.shape
-            bytes_per_line = channels * width
-            q_image = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
-            
-            # Convert QImage to QPixmap
-            pixmap = QPixmap.fromImage(q_image)
-            scaled_pixmap = pixmap.scaled(314, 220, Qt.AspectRatioMode.KeepAspectRatioByExpanding, 
-                                        Qt.TransformationMode.SmoothTransformation)
-            self.image_label.setPixmap(scaled_pixmap)
+        # First try to load from saved image path
+        if self.image_path and os.path.exists(self.image_path):
+            try:
+                pixmap = QPixmap(self.image_path)
+                if not pixmap.isNull():
+                    scaled_pixmap = pixmap.scaled(314, 220, Qt.AspectRatioMode.KeepAspectRatioByExpanding, 
+                                                Qt.TransformationMode.SmoothTransformation)
+                    self.image_label.setPixmap(scaled_pixmap)
+                    print(f"✓ Successfully loaded image from {self.image_path}")
+                    return
+                else:
+                    print(f"✗ Failed to load image - pixmap is null: {self.image_path}")
+            except Exception as e:
+                print(f"✗ Error loading image from {self.image_path}: {e}")
         else:
-            # Show placeholder text
-            self.image_label.setText("📷\nNo Image")
-            self.image_label.setStyleSheet("""
-                QLabel {
-                    background-color: #2a2a2a;
-                    border-top-left-radius: 9px;
-                    border-top-right-radius: 9px;
-                    border: none;
-                    color: #ffffff;
-                    font-size: 24px;
-                }
-            """)
+            print(f"✗ Image path not valid: {self.image_path}")
+        
+        # Show placeholder if image loading failed
+        print("Loading placeholder image...")
+        self.show_placeholder()
+    
+    def show_placeholder(self):
+        """Show placeholder when no image is available"""
+        self.image_label.setText("📷\nNo Image")
+        self.image_label.setStyleSheet("""
+            QLabel {
+                background-color: #2a2a2a;
+                border-top-left-radius: 9px;
+                border-top-right-radius: 9px;
+                border: none;
+                color: #ffffff;
+                font-size: 24px;
+            }
+        """)
     
     def get_status_circle_style(self, status):
         """Get CSS style for camera status circle"""
@@ -412,6 +407,7 @@ class CamCardFrame(QWidget):
                 camera_status=camera_data["camera_status"],
                 parking_status=camera_data["parking_status"],
                 video_source=camera_data["video_source"],
+                image_path=camera_data.get("image_path", ""),  # Pass the image path
                 card_size=self.card_size
             )
             

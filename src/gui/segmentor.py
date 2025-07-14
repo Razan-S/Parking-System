@@ -6,6 +6,7 @@ from src.gui.components import VideoFrameWidget, DarkButton, CoordinateCard
 from src.config.utils import CameraConfigManager
 from ..utils import is_valid_polygon
 import cv2 as cv
+import numpy as np
 from datetime import datetime
 
 class RoadSegmenterGUI(QMainWindow):
@@ -14,6 +15,7 @@ class RoadSegmenterGUI(QMainWindow):
     def __init__(self, camera_id=None):
         super().__init__()
         self.config_manager = CameraConfigManager()
+        self.camera_manager = None  # Will be set later by window
 
         self.camera = self.config_manager.get_camera_by_id(camera_id) if camera_id else None
         self.camera_id = camera_id
@@ -31,6 +33,7 @@ class RoadSegmenterGUI(QMainWindow):
         self.time_label = None
         self.date_label = None
         self.ui_initialized = False
+        self.waiting_for_frame = False  # Flag to prevent multiple frame requests
         
         # Initialize timer for clock updates (but don't start yet)
         self.timer = QTimer()
@@ -89,26 +92,36 @@ class RoadSegmenterGUI(QMainWindow):
         self.load_existing_detection_zones(existing_zones)
 
     def load_single_frame(self):
-        """Load only the first frame from the video"""
+        """Load only the first frame from the camera using camera manager"""
         try:
-            self.cap = cv.VideoCapture(self.video_path)
-            if not self.cap.isOpened():
-                print(f"Error: Could not open video file: {self.video_path}")
-                return
-            
-            # Read only the first frame
-            ret, frame = self.cap.read()
-            if ret and frame is not None:
-                self.video_widget.set_frame(frame)
-                self.clear_btn.setEnabled(True)
-                self.last_frame_time = datetime.now()  # Record timestamp
-                self.update_clock()  # Update clock display
+            if self.camera_manager and self.camera_id:
+                print(f"Loading frame using camera manager for {self.camera_id}")
+                self.request_frame_from_camera_manager()
             else:
-                print("Could not read first frame")
-            
-            # Close video capture to free resources
-            self.cap.release()
-            self.cap = None
+                print("Camera manager not available, falling back to direct capture")
+                # Fallback to direct video capture if camera manager not available
+                if not self.video_path:
+                    print("No video path available")
+                    return
+                    
+                self.cap = cv.VideoCapture(self.video_path)
+                if not self.cap.isOpened():
+                    print(f"Error: Could not open video file: {self.video_path}")
+                    return
+                
+                # Read only the first frame
+                ret, frame = self.cap.read()
+                if ret and frame is not None:
+                    self.video_widget.set_frame(frame)
+                    self.clear_btn.setEnabled(True)
+                    self.last_frame_time = datetime.now()
+                    self.update_clock()
+                else:
+                    print("Could not read first frame")
+                
+                # Close video capture to free resources
+                self.cap.release()
+                self.cap = None
                 
         except Exception as e:
             print(f"Error loading frame: {e}")
@@ -681,22 +694,70 @@ class RoadSegmenterGUI(QMainWindow):
             self.date_label.setText("-- --- ----")
     
     def take_new_shot(self):
-        """Take a new shot from the video source"""
-        if not self.video_path:
-            QMessageBox.warning(self, "No Video Source", "No video source available for new shot.")
+        """Take a new shot from the camera using camera manager"""
+        if not self.camera_id:
+            QMessageBox.warning(self, "No Camera", "No camera selected for new shot.")
+            return
+        
+        if self.waiting_for_frame:
+            QMessageBox.information(self, "Please Wait", "Already requesting a frame. Please wait...")
             return
         
         # Clear current coordinates and frame
         self.clear_coordinates()
         
-        # Load a new frame (for now, just reload the first frame)
-        # In a real implementation, this might capture from a live camera
-        self.load_single_frame()
-        
-        QMessageBox.information(self, "New Shot", "New frame captured successfully!")
+        # Request a new frame from camera manager
+        if self.camera_manager:
+            print("Taking new shot using camera manager")
+            self.request_frame_from_camera_manager()
+            QMessageBox.information(self, "New Shot", "Requesting new frame from camera...")
+        else:
+            # Fallback to direct capture
+            if not self.video_path:
+                QMessageBox.warning(self, "No Video Source", "No video source available for new shot.")
+                return
+            
+            self.load_single_frame()
+            QMessageBox.information(self, "New Shot", "New frame captured successfully!")
     
     def stop_detection(self):
         """Stop detection functionality - placeholder for future implementation"""
         QMessageBox.information(self, "Stop Detection", "Detection stopped.")
         # This is a placeholder - implement actual stop detection logic here
         pass
+
+    def set_camera_manager(self, camera_manager):
+        """Set the camera manager for getting frames"""
+        self.camera_manager = camera_manager
+        if self.camera_manager:
+            # Connect to frame ready signal
+            self.camera_manager.frame_ready.connect(self.on_frame_received)
+            print("Camera manager connected to segmentor")
+    
+    def on_frame_received(self, camera_id: str, frame):
+        """Handle frame received from camera manager"""
+        if camera_id == self.camera_id and frame is not None:
+            self.waiting_for_frame = False
+            print(f"Frame received for camera {camera_id}")
+            
+            if hasattr(self, 'video_widget') and self.video_widget:
+                self.video_widget.set_frame(frame)
+                if hasattr(self, 'clear_btn'):
+                    self.clear_btn.setEnabled(True)
+                self.last_frame_time = datetime.now()
+                self.update_clock()
+            else:
+                print("Video widget not ready yet")
+        else:
+            print(f"Frame received for different camera: {camera_id} (expected: {self.camera_id})")
+    
+    def request_frame_from_camera_manager(self):
+        """Request a frame from the camera manager"""
+        if self.camera_manager and self.camera_id and not self.waiting_for_frame:
+            print(f"Requesting frame for camera {self.camera_id}")
+            self.waiting_for_frame = True
+            self.camera_manager.get_latest_frame_for_config(self.camera_id)
+        elif self.waiting_for_frame:
+            print("Already waiting for frame")
+        else:
+            print("Camera manager or camera_id not set")

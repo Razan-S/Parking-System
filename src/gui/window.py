@@ -76,12 +76,8 @@ class Window(QMainWindow):
         self.dashboard.switch_to_config_page.connect(lambda cam: self.show_config_page(cam_name=cam))
         self.config_page.switch_to_dashboard_page.connect(self.show_dashboard)
         
-        # Set up config page (example content)
-        config_layout = QVBoxLayout(self.config_page)
-        config_layout.setContentsMargins(20, 20, 20, 20)
-        config_label = QLabel("Configuration Content")
-        config_label.setStyleSheet("font-size: 18px; color: #ffffff;")
-        config_layout.addWidget(config_label)
+        # Pass camera manager to config page so it can get frames
+        self.config_page.set_camera_manager(self.dashboard.camera_manager)
         
         # Create stacked widget for page switching
         self.stack_widget = QStackedLayout()

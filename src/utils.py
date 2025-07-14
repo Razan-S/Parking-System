@@ -22,6 +22,7 @@ def capture_video(camera_id):
     video_source = camera.get("video_source", 0)  # Default to 0 if not specified
     
     cap = cv.VideoCapture(video_source)
+    cap.set(cv.CAP_PROP_BUFFERSIZE, 3)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video source: {video_source}")
     
@@ -49,6 +50,7 @@ def capture_one_frame(camera_id):
     video_source = camera.get("video_source", 0)  # Default to 0 if not specified
 
     cap = cv.VideoCapture(video_source)
+    cap.set(cv.CAP_PROP_BUFFERSIZE, 3)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video source: {video_source}")
     
@@ -91,6 +93,7 @@ def capture_one_frame_silent(camera_id):
             video_source = os.path.join(ROOT_DIR, video_source)
 
     cap = cv.VideoCapture(video_source)
+    cap.set(cv.CAP_PROP_BUFFERSIZE, 3)
     
     # Set timeout for RTSP/network streams (5 seconds)
     if isinstance(video_source, str) and video_source.startswith(('rtsp://', 'rtmp://', 'http://', 'https://')):

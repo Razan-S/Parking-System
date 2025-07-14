@@ -1,9 +1,11 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QMessageBox, QButtonGroup, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QMessageBox, QButtonGroup, QFrame, QSizePolicy
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QPen
+from src.enums import CameraStatus
+from src.config.utils import CameraConfigManager
 
 class CameraToggleButton(QPushButton):
-    def __init__(self, camera_name, status="not_working", parent=None):
+    def __init__(self, camera_name, status=CameraStatus.NOT_WORKING.value, parent=None):
         super().__init__(parent)
         self.camera_name = camera_name
         self.status = status  # "working", "error", "not_working"
@@ -50,9 +52,9 @@ class CameraToggleButton(QPushButton):
         circle_radius = 6
         
         status_colors = {
-            "working": QColor("#00ff00"),    # Green
-            "not_working": QColor("#ff0000"),   # Red
-            "error": QColor("#ff9900")      # Orange
+            CameraStatus.WORKING.value: QColor("#00ff00"),    # Green
+            CameraStatus.NOT_WORKING.value: QColor("#ff0000"),   # Red
+            CameraStatus.ERROR.value: QColor("#ff9900")      # Orange
         }
         
         status_color = status_colors.get(self.status, QColor("#9E9E9E"))  # Default gray
@@ -72,10 +74,14 @@ class CameraSelector(QWidget):
     camera_selected = pyqtSignal(str)  # Signal to emit when camera selection changes
     camera_changed = pyqtSignal(str)  # Signal to emit when camera is toggled
 
-    def __init__(self, cameras, statuses=None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.cameras = cameras if cameras else ["No Cameras Available"]
-        self.statuses = statuses or ["not_working"] * len(cameras)  # Default to online if no statuses provided
+
+        self.config_manager = CameraConfigManager()
+        cameras = self.config_manager.get_all_cameras()
+
+        self.cameras = [camera.get('camera_name'," ") for camera in cameras]
+        self.statuses = [camera.get('camera_status', CameraStatus.ERROR.value) for camera in cameras]
         self.toggle_buttons = []
         self.button_group = QButtonGroup(self)
         self.button_group.setExclusive(True)
@@ -106,7 +112,7 @@ class CameraSelector(QWidget):
         
         # Create toggle buttons for each camera
         for i, camera in enumerate(self.cameras):
-            status = self.statuses[i] if i < len(self.statuses) else "working"
+            status = self.statuses[i] if i < len(self.statuses) else CameraStatus.NOT_WORKING.value
             toggle_button = CameraToggleButton(camera, status)
             
             # Set the first camera as selected by default

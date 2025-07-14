@@ -2,6 +2,7 @@ import json
 import os
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from datetime import datetime
+from src.enums import CameraStatus, ParkingStatus
 
 if TYPE_CHECKING:
     from typing import Self
@@ -431,16 +432,13 @@ class CameraConfigManager:
                 'camera_name': camera.get('camera_name', 'Unknown'),
                 'camera_id': camera.get('camera_id', '000'),
                 'location': camera.get('location', 'Unknown Location'),
-                'camera_status': camera.get('camera_status', 'unknown'),
-                'parking_status': camera.get('parking_status', 'unknown'),
+                'camera_status': camera.get('camera_status', CameraStatus.NOT_WORKING.value),
+                'parking_status': camera.get('parking_status', ParkingStatus.UNKNOWN.value),
                 'image': camera.get('image_path', ''),
                 'ip_address': camera.get('ip_address', ''),
                 'video_source': camera.get('video_source', ''),
                 'resolution': camera.get('resolution', {}),
-                'fps': camera.get('fps', 0),
-                'coordinates': camera.get('coordinates', {}),
                 'detection_zones': camera.get('detection_zones', []),
-                'alerts': camera.get('alerts', {}),
                 'last_maintenance': camera.get('last_maintenance', ''),
                 'installation_date': camera.get('installation_date', '')
             }
@@ -622,6 +620,31 @@ class CameraConfigManager:
                 })
         
         return issues
+
+    def update_camera_image(self, camera_id: str, image_path: str) -> bool:
+        """
+        Update the image path for a camera by ID
+        
+        Args:
+            camera_id: The camera ID
+            image_path: The new image path
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            cameras = self.get_all_cameras()
+            for i, camera in enumerate(cameras):
+                if camera.get('camera_id') == camera_id:
+                    # Update the image field
+                    self._config_data['cameras'][i]['image_path'] = image_path
+                    # Save the updated configuration
+                    return self.save_config()
+            
+            return False  # Camera not found
+        except Exception as e:
+            print(f"Error updating camera image: {e}")
+            return False
 
 # Utility functions for backward compatibility
 def load_camera_config(config_file_path: str = None) -> Dict[str, Any]:

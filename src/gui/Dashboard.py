@@ -1,9 +1,9 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
 from src.gui.CamSelector import CameraSelector
 from src.gui.CamCard import CamCardFrame
 from src.config.utils import CameraConfigManager
-# from src.CameraManager import CameraManager
+from src.CameraManager import CameraManager
 import os
 
 class Dashboard(QWidget):
@@ -24,6 +24,18 @@ class Dashboard(QWidget):
             self.camera_statuses = camera_statuses
             
         self.selected_camera = self.camera_names[0] if self.camera_names else None
+
+        # Initialize camera manager with all camera IDs from config
+        camera_ids = [camera['camera_id'] for camera in self.config_manager.get_all_cameras()]
+        self.camera_manager = CameraManager(camera_ids)
+        
+        # Connect camera manager signals - new simplified signals
+        self.camera_manager.data_updated.connect(self.on_data_updated)
+        self.camera_manager.error_occurred.connect(self.on_camera_error)
+        self.camera_manager.camera_processed.connect(self.on_camera_processed)
+        
+        # Start monitoring
+        self.camera_manager.start_monitoring()
 
         self.init_ui()
 
@@ -54,7 +66,7 @@ class Dashboard(QWidget):
     def add_camera_selector(self):
         """Add the camera selector widget at the top"""
         # Create camera selector
-        self.camera_selector = CameraSelector(self.camera_names, self.camera_statuses)
+        self.camera_selector = CameraSelector()
         self.camera_selector.camera_selected.connect(lambda: self.change_to_config_page(self.camera_selector.get_selected_camera()))
         self.camera_selector.camera_changed.connect(self.on_camera_selection_changed)
           # Add to layout
@@ -109,18 +121,7 @@ class Dashboard(QWidget):
         else:
             QMessageBox.warning(self, "No Camera Selected", "Please select a camera before configuring.")
             print("No camera selected.")
-    
-    def refresh_camera_data(self):
-        """Refresh camera data from JSON configuration"""
-        self.camera_names = self.config_manager.get_camera_names()
-        self.camera_statuses = self.config_manager.get_camera_statuses()
-          # Update camera selector with new data
-        if hasattr(self, 'camera_selector'):
-            # Update the camera selector buttons with new statuses
-            for i, camera_name in enumerate(self.camera_names):
-                if i < len(self.camera_statuses):
-                    self.camera_selector.update_camera_status(camera_name, self.camera_statuses[i])
-    
+
     def update_camera_status_in_config(self, camera_name: str, status: str):
         """Update camera status in configuration file using both camera_id and camera_name"""
         camera = self.config_manager.get_camera_by_name(camera_name)
@@ -162,20 +163,64 @@ class Dashboard(QWidget):
         else:
             print(f"Camera {camera_name} not found")
     
+    def refresh_camera_data(self):
+        """Refresh camera data from JSON configuration"""
+        print("Dashboard: Refreshing camera data...")
+        
+        # Reload configuration from file to get latest changes
+        self.config_manager.load_config()
+        
+        # Get fresh data
+        self.camera_names = self.config_manager.get_camera_names()
+        self.camera_statuses = self.config_manager.get_camera_statuses()
+          # Update camera selector with new data
+        if hasattr(self, 'camera_selector'):
+            # Update the camera selector buttons with new statuses
+            for i, camera_name in enumerate(self.camera_names):
+                if i < len(self.camera_statuses):
+                    self.camera_selector.update_camera_status(camera_name, self.camera_statuses[i])
+    
     def refresh_camera_cards(self):
         """Refresh camera cards with updated data from configuration"""
         # Find and update the CamCardFrame widget
         for i in range(self.main_layout.count()):
             widget = self.main_layout.itemAt(i).widget()
             if hasattr(widget, '__class__') and widget.__class__.__name__ == 'CamCardFrame':
-                # Remove the old widget
-                widget.setParent(None)
-                # Create and add a new one with updated data
-                cameras_data = self.config_manager.get_cameras_for_ui()
-                ROOT_DIR = os.path.abspath(os.curdir)
-                for camera in cameras_data:
-                    if camera.get('image') and not os.path.isabs(camera['image']):
-                        camera['image'] = os.path.join(ROOT_DIR, camera['image'])
-                new_cameras_card = CamCardFrame(cameras_data=cameras_data)
-                self.main_layout.insertWidget(i, new_cameras_card)
+                # Update the existing widget instead of recreating it
+                widget.update_camera_cards()
                 break
+
+    def on_data_updated(self, camera_id: str):
+        """Handle when camera data is updated in JSON - refresh UI from config"""
+        print(f"Data updated for camera {camera_id}, refreshing UI from JSON")
+        
+        # Refresh camera data from JSON
+        self.refresh_camera_data()
+        
+        # Refresh camera cards to show updated status
+        self.refresh_camera_cards()
+    
+    def on_camera_error(self, camera_id: str, error_message: str):
+        """Handle camera errors"""
+        print(f"Camera error for {camera_id}: {error_message}")
+        
+        # Update camera status to error in config
+        camera = self.config_manager.get_camera_by_id(camera_id)
+        if camera:
+            camera_name = camera.get('camera_name', '')
+            if camera_name:
+                self.update_camera_status_in_config(camera_name, "error")
+    
+    def on_camera_processed(self, camera_id: str):
+        """Handle when camera processing is complete"""
+        print(f"Camera {camera_id} processing complete")
+        # Could add specific UI updates here if needed
+    
+    def cleanup(self):
+        """Clean up resources when dashboard is closed"""
+        if hasattr(self, 'camera_manager'):
+            self.camera_manager.shutdown()
+    
+    def __del__(self):
+        """Destructor to ensure cleanup"""
+        self.cleanup()
