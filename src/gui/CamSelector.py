@@ -48,7 +48,7 @@ class CameraToggleButton(QPushButton):
         
         # Only draw status circle on the right (let QPushButton handle text)
         circle_x = self.width() - 30
-        circle_y = 15
+        circle_y = self.height() // 2 - 6  # Center vertically
         circle_radius = 6
         
         status_colors = {

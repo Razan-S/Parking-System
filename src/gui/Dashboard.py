@@ -4,6 +4,7 @@ from src.gui.CamSelector import CameraSelector
 from src.gui.CamCard import CamCardFrame
 from src.config.utils import CameraConfigManager
 from src.CameraManager import CameraManager
+from src.enums import CameraStatus, ParkingStatus
 import os
 
 class Dashboard(QWidget):
@@ -50,7 +51,7 @@ class Dashboard(QWidget):
 
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(20, 20, 20, 20)
-        self.main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.main_layout.setSpacing(5)  # Add spacing between components
 
         # Create both camera selector and camera cards
         self.setup_dashboard_ui()
@@ -75,6 +76,7 @@ class Dashboard(QWidget):
     def add_camera_cards(self):
         """Add camera cards in a grid layout"""
         # Get camera data from JSON configuration
+        self.config_manager.load_config()
         cameras_data = self.config_manager.get_cameras_for_ui()
           # Ensure image paths are absolute
         ROOT_DIR = os.path.abspath(os.curdir)
@@ -84,10 +86,12 @@ class Dashboard(QWidget):
 
         cameras_card = CamCardFrame()
         cameras_card.card_clicked.connect(lambda cam_id: self.handle_camera_card_click(cam_id))
-        self.main_layout.addWidget(cameras_card)
+        # Add with stretch factor to make the camera cards area take more space
+        self.main_layout.addWidget(cameras_card, 2)
 
     def handle_camera_card_click(self, camera_id):
         """Handle camera card click by finding the camera name and updating selector"""
+        self.config_manager.load_config()
         camera = self.config_manager.get_camera_by_id(camera_id)
         if camera:
             camera_name = camera.get('camera_name')
@@ -124,6 +128,7 @@ class Dashboard(QWidget):
 
     def update_camera_status_in_config(self, camera_name: str, status: str):
         """Update camera status in configuration file using both camera_id and camera_name"""
+        self.config_manager.load_config()
         camera = self.config_manager.get_camera_by_name(camera_name)
         if camera:
             camera_id = camera.get('camera_id')
@@ -131,6 +136,8 @@ class Dashboard(QWidget):
                 # Validate camera exists with both fields
                 if self.config_manager.validate_camera_exists(camera_id, camera_name):
                     success = self.config_manager.update_camera_status(camera_id, camera_name, status)
+
+
                     if success:
                         self.refresh_camera_data()
                     else:
@@ -144,6 +151,7 @@ class Dashboard(QWidget):
     
     def update_parking_status_in_config(self, camera_name: str, parking_status: str):
         """Update parking status in configuration file using both camera_id and camera_name"""
+        self.config_manager.load_config()
         camera = self.config_manager.get_camera_by_name(camera_name)
         if camera:
             camera_id = camera.get('camera_id')
@@ -205,11 +213,13 @@ class Dashboard(QWidget):
         print(f"Camera error for {camera_id}: {error_message}")
         
         # Update camera status to error in config
+        self.config_manager.load_config()
         camera = self.config_manager.get_camera_by_id(camera_id)
         if camera:
             camera_name = camera.get('camera_name', '')
             if camera_name:
-                self.update_camera_status_in_config(camera_name, "error")
+                self.update_camera_status_in_config(camera_name, CameraStatus.ERROR.value)
+                self.update_parking_status_in_config(camera_name, ParkingStatus.UNKNOWN.value)
     
     def on_camera_processed(self, camera_id: str):
         """Handle when camera processing is complete"""

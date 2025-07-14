@@ -6,13 +6,12 @@ import os
 
 from src.config.utils import CameraConfigManager
 from src.enums import ParkingStatus, CameraStatus
-
 class CamCard(QWidget):
     card_clicked = pyqtSignal(str)  # Signal emitted when card is clicked
     
     def __init__(self, camera_name="Unknown", camera_id="0", location="Unknown", 
                  camera_status=CameraStatus.ERROR.value, parking_status=ParkingStatus.UNKNOWN.value, 
-                 video_source=None, image_path=None, card_size=(350, 400)):
+                 video_source=None, image_path=None, card_size=(400, 480)):
         super().__init__()        
         self.camera_name = camera_name
         self.camera_id = camera_id
@@ -32,17 +31,17 @@ class CamCard(QWidget):
         main_layout.setContentsMargins(3, 3, 3, 3)  # Account for border width
         main_layout.setSpacing(0)
         
-        # Create a container frame for the border
+        # Create a container frame for the border (responsive to card size)
         container_frame = QFrame()
         container_frame.setObjectName("CamCardContainer")
         container_frame.setFixedSize(314, 400)  # Exact size to fit within card bounds
-        container_frame.setStyleSheet("""
-            QFrame#CamCardContainer {
-                border: 3px solid #4a9eff;
-                background-color: #1a1a1a;
-                border-radius: 12px;
-            }
-        """)
+        # container_frame.setStyleSheet("""
+        #     QFrame#CamCardContainer {
+        #         border: 3px solid #D2042D;
+        #         background-color: #D2042D;
+        #         border-radius: 12px;
+        #     }
+        # """)
         
         main_layout.addWidget(container_frame)
         
@@ -56,7 +55,7 @@ class CamCard(QWidget):
         image_height = 220
         content_height = 180
         
-        # Image section (220px height, rounded top corners)
+        # Image section (responsive height, rounded top corners)
         self.image_label = QLabel()
         self.image_label.setFixedSize(content_width, image_height)
         self.image_label.setStyleSheet("""
@@ -74,25 +73,34 @@ class CamCard(QWidget):
         self.load_image()
         layout.addWidget(self.image_label)
         
-        # Content section (180px height for remaining content)
+        # Content section (responsive height)
         content_widget = QWidget()
         content_widget.setFixedSize(content_width, content_height)
         content_widget.setStyleSheet("QWidget { border: none; background-color: #1a1a1a; }")
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(15, 15, 15, 15)
-        content_layout.setSpacing(12)
+        
+        # Responsive margins and spacing based on card size
+        margin_size = max(10, int(content_width * 0.04))  # 4% of width, minimum 10px
+        spacing_size = max(8, int(content_height * 0.06))  # 6% of height, minimum 8px
+        
+        content_layout.setContentsMargins(margin_size, margin_size, margin_size, margin_size)
+        content_layout.setSpacing(spacing_size)
         
         # Camera name and ID row
         name_id_layout = QHBoxLayout()
         name_id_layout.setContentsMargins(0, 0, 0, 0)
         
+        # Responsive font sizes
+        name_font_size = max(12, int(content_width * 0.035))  # 3.5% of width
+        id_font_size = max(10, int(content_width * 0.03))     # 3% of width
+        
         name_label = QLabel(self.camera_name)
-        name_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        name_label.setFont(QFont("Arial", name_font_size, QFont.Weight.Bold))
         name_label.setStyleSheet("color: #ffffff;")
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         id_label = QLabel(f"#{self.camera_id}")
-        id_label.setFont(QFont("Arial", 12))
+        id_label.setFont(QFont("Arial", id_font_size))
         id_label.setStyleSheet("color: #cccccc; margin-left: 5px;")
         
         name_id_layout.addStretch()
@@ -106,10 +114,12 @@ class CamCard(QWidget):
         location_layout = QHBoxLayout()
         location_layout.setContentsMargins(0, 0, 0, 0)
         
+        location_font_size = max(9, int(content_width * 0.028))  # 2.8% of width
+        
         # Location icon (using text for now, can be replaced with actual icon)
         location_icon = QLabel("📍")
-        location_icon.setFont(QFont("Arial", 12))
-        location_icon.setFixedSize(20, 20)
+        location_icon.setFont(QFont("Arial", location_font_size))
+        location_icon.setFixedSize(max(16, int(content_width * 0.05)), max(16, int(content_width * 0.05)))
         
         location_label = QLabel(self.location)
         location_label.setFont(QFont("Arial", 11))
@@ -292,7 +302,7 @@ class CamCardFrame(QWidget):
     card_clicked = pyqtSignal(str)  # Signal emitted when a camera card is clicked
 
     """Custom frame to hold CamCard with rounded corners"""
-    def __init__(self, cards_per_row=2, card_size=(320, 400)):
+    def __init__(self, cards_per_row=2, card_size=(400, 480)):
         super().__init__()
         self.ROOT_DIR = os.path.abspath(os.curdir)
         self.IMAGE_DIR = os.path.join(self.ROOT_DIR, "image")
@@ -311,7 +321,7 @@ class CamCardFrame(QWidget):
     def init_ui(self):
         self.setStyleSheet("QWidget { background-color: #1a1a1a; }")
         self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(5)  # Reduced spacing from 10 to 5
+        self.main_layout.setSpacing(10)
 
         label = QLabel("Camera Monitor Cards")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -321,7 +331,7 @@ class CamCardFrame(QWidget):
                 font-weight: bold;
                 color: #ffffff;
                 margin-top: 5px;
-                margin-bottom: 5px;
+                margin-bottom: 15px;
             }
         """)
 
@@ -331,7 +341,8 @@ class CamCardFrame(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        # Set proper size policy for scroll area
+        
+        # Set proper size policy for scroll area - remove minimum height restriction
         from PyQt6.QtWidgets import QSizePolicy
         self.scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.scroll_area.setStyleSheet("""
@@ -371,11 +382,11 @@ class CamCardFrame(QWidget):
         # Add the camera cards
         self.add_camera_cards()
         
-        # Add scroll area to main layout (removed minimum height)
-        self.main_layout.addWidget(self.scroll_area, 1)  # Give it stretch factor
+        # Add scroll area to main layout
+        self.main_layout.addWidget(self.scroll_area, 1)
 
     def add_camera_cards(self):
-        """Add camera cards in a scrollable area"""
+        """Add camera cards in a scrollable area with responsive centering"""
         if not self.cameras:
             QMessageBox.warning(self, "No Cameras", "No camera data available to display.")
             return
@@ -384,7 +395,7 @@ class CamCardFrame(QWidget):
         content_widget = QWidget()
         content_widget.setStyleSheet("QWidget { background-color: #1a1a1a; }")
         from PyQt6.QtWidgets import QSizePolicy
-        content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         content_layout = QVBoxLayout(content_widget)
         content_layout.setSpacing(30)
         content_layout.setContentsMargins(30, 30, 30, 30)
@@ -421,8 +432,8 @@ class CamCardFrame(QWidget):
         if len(self.cameras) % self.cards_per_row != 0:
             current_row_layout.addStretch()
 
-        # Add stretch to push content to the top
-        content_layout.addStretch()
+        # Don't add stretch at the bottom - let content determine its own height
+        # This allows proper scrolling when content exceeds available space
         
         # Set scroll area content
         self.scroll_area.setWidget(content_widget)

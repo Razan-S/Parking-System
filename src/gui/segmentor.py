@@ -70,7 +70,15 @@ class RoadSegmenterGUI(QMainWindow):
         splitter.addWidget(video_panel)
         splitter.addWidget(menu_panel)
         
-        splitter.setSizes([1050, 350])
+        # Set splitter properties
+        splitter.setCollapsible(0, False)  # Video panel cannot be collapsed
+        splitter.setCollapsible(1, False)  # Menu panel cannot be collapsed
+        
+        # Store splitter reference for later sizing
+        self.splitter = splitter
+        
+        # Use QTimer to set sizes after UI is fully rendered
+        QTimer.singleShot(0, lambda: self.splitter.setSizes([900, 500]))
 
     def setup(self):
         """Set up the video path and load the first frame"""
@@ -172,6 +180,12 @@ class RoadSegmenterGUI(QMainWindow):
             }
         """)
         
+        # Set size policy for menu panel to have fixed preferred width
+        from PyQt6.QtWidgets import QSizePolicy
+        panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        panel.setMaximumWidth(400)  # Set maximum width for menu panel
+        panel.setMinimumWidth(300)  # Set minimum width for menu panel
+        
         layout = QVBoxLayout(panel)
         layout.setSpacing(8)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -261,73 +275,6 @@ class RoadSegmenterGUI(QMainWindow):
         self.clear_btn.setEnabled(False)
         layout.addWidget(self.clear_btn)
         
-        # Clock display
-        clock_frame = QFrame()
-        clock_frame.setStyleSheet("""
-            QFrame {
-                background-color: #1a1a1a;
-                border: 1px solid #666666;
-                border-radius: 5px;
-                padding: 5px;
-                min-height: 90px;
-                max-height: 90px;
-            }
-        """)
-        clock_layout = QVBoxLayout(clock_frame)
-        clock_layout.setContentsMargins(5, 5, 5, 5)
-        clock_layout.setSpacing(2)
-        
-        clock_label = QLabel("Latest frame at:")
-        clock_label.setStyleSheet("""
-            QLabel {
-                font-size: 10px;
-                color: #ffffff;
-                border: none;
-                background: transparent;
-                padding: 2px;
-                margin: 0px;
-                min-height: 16px;
-            }
-        """)
-        clock_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
-        clock_layout.addWidget(clock_label)
-        
-        self.time_label = QLabel("--:--")
-        self.time_label.setStyleSheet("""
-            QLabel {
-                font-size: 18px;
-                font-weight: bold;
-                color: #4a9eff;
-                border: none;
-                background: transparent;
-                padding: 2px;
-                margin: 0px;
-                min-height: 24px;
-            }
-        """)
-        self.time_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
-        clock_layout.addWidget(self.time_label)
-        
-        self.date_label = QLabel("-- --- ----")
-        self.date_label.setStyleSheet("""
-            QLabel {
-                font-size: 10px;
-                color: #ffffff;
-                border: none;
-                background: transparent;
-                padding: 2px;
-                margin: 0px;
-                min-height: 16px;
-            }
-        """)
-        self.date_label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
-        clock_layout.addWidget(self.date_label)
-        
-        # Add stretch to push content to top
-        clock_layout.addStretch()
-        
-        layout.addWidget(clock_frame)
-        
         # Saved Frame section
         saved_frame_label = QLabel("Saved Frame")
         saved_frame_label.setStyleSheet("""
@@ -345,7 +292,7 @@ class RoadSegmenterGUI(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setMinimumHeight(200)  # Set minimum height for larger saved frame area
-        scroll.setMaximumHeight(300)  # Set maximum height to prevent it from being too large
+        # scroll.setMaximumHeight(300)  # Set maximum height to prevent it from being too large
         scroll.setStyleSheet("""
             QScrollArea {
                 background: transparent;
@@ -372,10 +319,7 @@ class RoadSegmenterGUI(QMainWindow):
         self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.cards_layout.setSpacing(5)
         scroll.setWidget(self.cards_widget)
-        layout.addWidget(scroll)
-        
-        # Add stretch to push buttons to bottom
-        layout.addStretch()
+        layout.addWidget(scroll, 1)  # Add stretch factor of 1 to make it expand
         
         # New Shot button
         self.new_shot_btn = DarkButton("New Shot")
@@ -442,6 +386,11 @@ class RoadSegmenterGUI(QMainWindow):
                 border: 1px solid #666666;
             }
         """)
+        
+        # Set size policy for video panel to expand
+        from PyQt6.QtWidgets import QSizePolicy
+        panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        panel.setMinimumWidth(600)  # Set minimum width for video panel
         
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(20, 20, 20, 20)
