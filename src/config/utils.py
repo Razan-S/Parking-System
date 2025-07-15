@@ -177,6 +177,9 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
+        # Load latest configuration before updating
+        self.load_config()
+        
         camera = self.get_camera_by_id_and_name(camera_id, camera_name)
         if camera:
             camera['camera_status'] = status
@@ -194,6 +197,9 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
+        # Load latest configuration before updating
+        self.load_config()
+        
         cameras = self.get_all_cameras()
         for camera in cameras:
             if camera.get('camera_id') == camera_id:
@@ -213,6 +219,9 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
+        # Load latest configuration before updating
+        self.load_config()
+        
         camera = self.get_camera_by_id_and_name(camera_id, camera_name)
         if camera:
             camera['parking_status'] = parking_status
@@ -230,6 +239,9 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
+        # Load latest configuration before updating
+        self.load_config()
+        
         cameras = self.get_all_cameras()
         for camera in cameras:
             if camera.get('camera_id') == camera_id:
@@ -252,6 +264,9 @@ class CameraConfigManager:
         if detection_zones is None or not isinstance(detection_zones, list):
             print("Invalid detection zones provided")
             return False
+        
+        # Load latest configuration before updating
+        self.load_config()
         
         # Convert frame data to detection zones
         zones = []
@@ -295,6 +310,9 @@ class CameraConfigManager:
             print("Invalid detection zones provided")
             return False
         
+        # Load latest configuration before updating
+        self.load_config()
+        
         # Convert frame data to detection zones
         zones = []
         for frame_data in detection_zones:
@@ -333,11 +351,11 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
-        if not self._config_data:
-            self.load_config()
+        # Load latest configuration before adding
+        self.load_config()
         
         # Validate required fields
-        required_fields = ['camera_id', 'camera_name', 'location']
+        required_fields = ['camera_id', 'camera_name', 'video_source', ]
         for field in required_fields:
             if field not in camera_config:
                 print(f"Missing required field: {field}")
@@ -362,6 +380,9 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
+        # Load latest configuration before removing
+        self.load_config()
+        
         cameras = self.get_all_cameras()
         for i, camera in enumerate(cameras):
             if camera.get('camera_id') == camera_id and camera.get('camera_name') == camera_name:
@@ -379,6 +400,9 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
+        # Load latest configuration before removing
+        self.load_config()
+        
         cameras = self.get_all_cameras()
         for i, camera in enumerate(cameras):
             if camera.get('camera_id') == camera_id:
@@ -408,8 +432,8 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
-        if not self._config_data:
-            self.load_config()
+        # Load latest configuration before updating
+        self.load_config()
         
         if 'system_settings' not in self._config_data:
             self._config_data['system_settings'] = {}
@@ -507,6 +531,22 @@ class CameraConfigManager:
         camera = self.get_camera_by_id_and_name(camera_id, camera_name)
         return camera is not None
 
+    def is_id_exists(self, camera_id: str) -> bool:
+        """
+        Check if a camera ID already exists in the configuration
+        
+        Args:
+            camera_id: The camera ID to check
+            
+        Returns:
+            True if ID exists, False otherwise
+        """
+        cameras = self.get_all_cameras()
+        for camera in cameras:
+            if camera.get('camera_id') == camera_id:
+                return True
+        return False
+
     def update_camera_property(self, camera_id: str, camera_name: str, property_name: str, property_value: Any) -> bool:
         """
         Safely update any camera property using both camera_id and camera_name for validation
@@ -520,6 +560,9 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
+        # Load latest configuration before updating
+        self.load_config()
+        
         camera = self.get_camera_by_id_and_name(camera_id, camera_name)
         if camera:
             camera[property_name] = property_value
@@ -633,6 +676,9 @@ class CameraConfigManager:
             True if successful, False otherwise
         """
         try:
+            # Load latest configuration before updating
+            self.load_config()
+            
             cameras = self.get_all_cameras()
             for i, camera in enumerate(cameras):
                 if camera.get('camera_id') == camera_id:

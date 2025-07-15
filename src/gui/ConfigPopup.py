@@ -5,6 +5,11 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QTimer, Qt
 from src.config.utils import CameraConfigManager
+from datetime import datetime
+from random import randint
+from src.enums import CameraStatus, ParkingStatus
+import os
+import shutil
 
 class ConfigPopup(QDialog):
     def __init__(self):
@@ -16,6 +21,10 @@ class ConfigPopup(QDialog):
         
         # Initialize camera manager
         self.camera_manager = CameraConfigManager()
+        
+        # Track current mode and camera being edited
+        self.current_mode = None  # "add" or "edit"
+        self.current_camera_id = None  # ID of camera being edited, None for new
         
         # Setup UI
         self.setup_ui()
@@ -83,11 +92,7 @@ class ConfigPopup(QDialog):
         self.delete_button.clicked.connect(self.delete_camera)
         self.delete_button.setEnabled(False)
         button_layout.addWidget(self.delete_button)
-        
-        self.duplicate_button = QPushButton("Duplicate Camera")
-        self.duplicate_button.clicked.connect(self.duplicate_camera)
-        self.duplicate_button.setEnabled(False)
-        button_layout.addWidget(self.duplicate_button)
+    
         
         layout.addLayout(button_layout)
         panel.setLayout(layout)
@@ -147,14 +152,14 @@ class ConfigPopup(QDialog):
         config_group.setLayout(form_layout)
         layout.addWidget(config_group)
         
-        # Connection test button
-        test_layout = QHBoxLayout()
-        self.test_connection_button = QPushButton("Test Connection")
-        self.test_connection_button.clicked.connect(self.test_connection)
-        self.test_connection_button.setEnabled(False)
-        test_layout.addWidget(self.test_connection_button)
-        test_layout.addStretch()
-        layout.addLayout(test_layout)
+        # # Connection test button
+        # test_layout = QHBoxLayout()
+        # self.test_connection_button = QPushButton("Test Connection")
+        # self.test_connection_button.clicked.connect(self.test_connection)
+        # self.test_connection_button.setEnabled(False)
+        # test_layout.addWidget(self.test_connection_button)
+        # test_layout.addStretch()
+        # layout.addLayout(test_layout)
         
         # Spacer
         layout.addStretch()
@@ -187,13 +192,19 @@ class ConfigPopup(QDialog):
             camera_data = current_item.data(Qt.ItemDataRole.UserRole)
             self.populate_camera_form(camera_data)
             self.delete_button.setEnabled(True)
-            self.duplicate_button.setEnabled(True)
-            self.test_connection_button.setEnabled(True)
+            # self.test_connection_button.setEnabled(True)
+            
+            # Set edit mode
+            self.current_mode = "edit"
+            self.current_camera_id = camera_data.get('camera_id')
         else:
             self.clear_camera_form()
             self.delete_button.setEnabled(False)
-            self.duplicate_button.setEnabled(False)
-            self.test_connection_button.setEnabled(False)
+            # self.test_connection_button.setEnabled(False)
+            
+            # Clear mode when no selection
+            self.current_mode = None
+            self.current_camera_id = None
             
     def populate_camera_form(self, camera_data):
         """Populate the form with camera data"""
@@ -223,10 +234,18 @@ class ConfigPopup(QDialog):
         # Clear form for new camera
         self.clear_camera_form()
         
+        # Load latest configuration to get accurate camera count
+        self.camera_manager.load_config()
+        
         # Generate new camera ID
         cameras = self.camera_manager.get_all_cameras()
         camera_count = len(cameras) + 1
         new_id = f"CAM_{camera_count:03d}"
+        
+        # Ensure ID is unique
+        while self.camera_manager.is_id_exists(new_id):
+            camera_count += 1
+            new_id = f"CAM_{camera_count:03d}"
         
         # Set default values
         self.camera_name_edit.setText(f"New Camera {camera_count}")
@@ -235,6 +254,10 @@ class ConfigPopup(QDialog):
         
         # Deselect current item
         self.camera_list.setCurrentRow(-1)
+        
+        # Set add mode
+        self.current_mode = "add"
+        self.current_camera_id = new_id  # Store the new ID that will be used
         
     def delete_camera(self):
         """Delete the selected camera"""
@@ -254,37 +277,27 @@ class ConfigPopup(QDialog):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            # Remove from list (actual deletion will be handled when applying changes)
-            row = self.camera_list.row(current_item)
-            self.camera_list.takeItem(row)
-            self.clear_camera_form()
+            # Load latest configuration before deleting
+            self.camera_manager.load_config()
             
-    def duplicate_camera(self):
-        """Duplicate the selected camera"""
-        current_item = self.camera_list.currentItem()
-        if not current_item:
-            return
-            
-        camera_data = current_item.data(Qt.ItemDataRole.UserRole)
-        
-        # Generate new camera ID
-        cameras = self.camera_manager.get_all_cameras()
-        camera_count = len(cameras) + 1
-        new_id = f"CAM_{camera_count:03d}"
-        
-        # Create new camera data
-        new_camera_data = camera_data.copy()
-        new_camera_data['camera_id'] = new_id
-        new_camera_data['camera_name'] = f"{camera_data.get('camera_name', 'Camera')} (Copy)"
-        
-        # Add to list
-        item = QListWidgetItem(f"{new_camera_data['camera_name']} ({new_id})")
-        item.setData(Qt.ItemDataRole.UserRole, new_camera_data)
-        self.camera_list.addItem(item)
-        
-        # Select the new item
-        self.camera_list.setCurrentItem(item)
-        
+            print(f"Deleting camera: {camera_name} (ID: {self.current_camera_id})")
+            result = self.camera_manager.remove_camera(camera_id=self.current_camera_id, camera_name=camera_name)
+            if result:
+                row = self.camera_list.row(current_item)
+                self.camera_list.takeItem(row)
+                self.clear_camera_form()
+                QMessageBox.information(
+                    self, 
+                    "Success", 
+                    f"Camera '{camera_name}' deleted successfully."
+                )
+            else:
+                QMessageBox.critical(
+                    self, 
+                    "Error", 
+                    f"Failed to delete camera '{camera_name}'."
+                )
+              
     def test_connection(self):
         """Test camera connection (placeholder function)"""
         ip_address = self.ip_address_edit.text()
@@ -302,26 +315,216 @@ class ConfigPopup(QDialog):
             "Note: This is a placeholder. Actual connection testing "
             "functionality will be implemented later."
         )
-        
+     
     def apply_changes(self):
         """Apply changes without closing dialog"""
-        # Placeholder for saving changes
-        QMessageBox.information(
-            self, 
-            "Apply Changes", 
-            "Changes applied successfully!\n\n"
-            "Note: This is a placeholder. Actual save functionality "
-            "will be implemented later."
-        )
+        try:
+            if self.current_mode == "add":
+                self.save_new_camera()
+            elif self.current_mode == "edit":
+                self.update_existing_camera()
+            else:
+                QMessageBox.information(
+                    self, 
+                    "No Changes", 
+                    "No camera selected or no changes to apply."
+                )
+                return
+                
+            # Reload the camera list to reflect changes
+            self.load_cameras()
+            
+            QMessageBox.information(
+                self, 
+                "Success", 
+                "Changes applied successfully!"
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self, 
+                "Error", 
+                f"Failed to apply changes: {str(e)}"
+            )
+    
+    def save_new_camera(self):
+        """Save a new camera to the configuration"""
+        form_data = self.get_camera_form_data()
         
+        # Validate required fields
+        self.validate_camera_form(form_data, is_new_camera=True)
+        
+        # IMPORTANT: Load latest configuration first
+        self.camera_manager.load_config()
+        
+        # Generate unique camera ID
+        cameras = self.camera_manager.get_all_cameras()
+        camera_count = len(cameras) + 1
+        new_id = f'CAM_{camera_count:03d}'
+        
+        # Ensure ID is unique
+        while self.camera_manager.is_id_exists(new_id):
+            camera_count += 1
+            new_id = f'CAM_{camera_count:03d}'
+
+        if not new_id:
+            raise ValueError("Failed to generate a unique camera ID")
+
+        # Add required fields for new camera
+        form_data['camera_id'] = new_id
+        form_data['camera_status'] = CameraStatus.NOT_WORKING.value
+        form_data['parking_status'] = ParkingStatus.UNKNOWN.value
+        form_data['image_path'] = ""
+        form_data['detection_zones'] = []
+        form_data['last_maintenance'] = None
+        form_data['installation_date'] = datetime.now().isoformat()
+        form_data['last_updated'] = datetime.now().isoformat()
+        
+        # Save to configuration
+        success = self.camera_manager.add_camera(form_data)
+        if not success:
+            raise ValueError("Failed to add camera to configuration")
+        
+        print(f"DEBUG: Camera saved successfully: {success}")
+        
+        # Reset mode
+        self.current_mode = None
+        self.current_camera_id = None
+        
+    def update_existing_camera(self):
+        """Update an existing camera in the configuration"""
+        form_data = self.get_camera_form_data()
+        
+        # IMPORTANT: Load latest configuration first
+        self.camera_manager.load_config()
+        
+        old_config = self.camera_manager.get_camera_by_id(self.current_camera_id)
+
+        if not old_config:
+            raise ValueError(f"Camera with ID {self.current_camera_id} not found")
+        
+        self.validate_camera_form(form_data, is_new_camera=False)
+
+        print(f"DEBUG: Updating camera {self.current_camera_id} with data: {form_data}")
+
+        # Preserve existing metadata and update form data
+        form_data['camera_id'] = self.current_camera_id
+        form_data['camera_status'] = old_config.get('camera_status', CameraStatus.NOT_WORKING.value)
+        form_data['parking_status'] = old_config.get('parking_status', ParkingStatus.UNKNOWN.value)
+        form_data['image_path'] = old_config.get('image_path', "")
+        form_data['detection_zones'] = old_config.get('detection_zones', [])
+        form_data['last_maintenance'] = old_config.get('last_maintenance')
+        form_data['installation_date'] = old_config.get('installation_date')
+        form_data['last_updated'] = datetime.now().isoformat()
+
+        # Update the camera in the configuration directly
+        cameras = self.camera_manager.get_all_cameras()
+        for i, camera in enumerate(cameras):
+            if camera.get('camera_id') == self.current_camera_id:
+                # Replace the entire camera object
+                self.camera_manager._config_data['cameras'][i] = form_data
+                break
+        
+        # Save the configuration
+        success = self.camera_manager.save_config()
+        if not success:
+            raise ValueError("Failed to save camera configuration")
+        
+        print(f"DEBUG: Camera updated successfully")
+
+        # Update the list item if camera name changed
+        old_camera_name = old_config.get('camera_name', '')
+        if form_data['camera_name'] != old_camera_name:
+            current_item = self.camera_list.currentItem()
+            if current_item:
+                current_item.setText(f"{form_data['camera_name']} ({self.current_camera_id})")
+                current_item.setData(Qt.ItemDataRole.UserRole, form_data)
+
+        # Reset mode
+        self.current_mode = None
+        self.current_camera_id = None
+
+    def validate_camera_form(self, form_data, is_new_camera=True):
+        """Validate camera form data"""
+        errors = []
+        
+        # Check required fields
+        if not form_data['camera_name'].strip():
+            errors.append("Camera name is required")
+        
+        if is_new_camera and not form_data['video_source'].strip():
+            errors.append("Video source is required for new cameras")
+        
+        # Validate IP address format if provided
+        if form_data['ip_address'].strip():
+            import re
+            ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+            if not re.match(ip_pattern, form_data['ip_address']):
+                errors.append("Invalid IP address format")
+        
+        # Validate port range
+        if not (1 <= form_data['port'] <= 65535):
+            errors.append("Port must be between 1 and 65535")
+        
+        if errors:
+            raise ValueError("\n".join(errors))
+        
+    def has_unsaved_changes(self):
+        """Check if there are unsaved changes in the form"""
+        if self.current_mode == "add":
+            # Check if form has any non-default values
+            form_data = self.get_camera_form_data()
+            return any([
+                form_data['camera_name'] != f"New Camera {len(self.camera_manager.get_all_cameras()) + 1}",
+                form_data['location'].strip(),
+                form_data['ip_address'].strip(),
+                form_data['port'] != 8080,
+                form_data['username'].strip(),
+                form_data['password'].strip(),
+                form_data['video_source'].strip()
+            ])
+        elif self.current_mode == "edit" and self.current_camera_id:
+            # Compare current form data with original camera data
+            current_item = self.camera_list.currentItem()
+            if current_item:
+                original_data = current_item.data(Qt.ItemDataRole.UserRole)
+                form_data = self.get_camera_form_data()
+                return any([
+                    form_data['camera_name'] != original_data.get('camera_name', ''),
+                    form_data['location'] != original_data.get('location', ''),
+                    form_data['ip_address'] != original_data.get('ip_address', ''),
+                    form_data['port'] != original_data.get('port', 8080),
+                    form_data['username'] != original_data.get('username', ''),
+                    form_data['password'] != original_data.get('password', ''),
+                    form_data['video_source'] != original_data.get('video_source', '')
+                ])
+        return False
+    
+    def is_add_mode(self):
+        """Check if currently in add mode"""
+        return self.current_mode == "add"
+    
+    def is_edit_mode(self):
+        """Check if currently in edit mode"""
+        return self.current_mode == "edit"
+    
+    def get_current_operation(self):
+        """Get a string describing the current operation"""
+        if self.current_mode == "add":
+            return f"Adding new camera: {self.current_camera_id}"
+        elif self.current_mode == "edit":
+            return f"Editing camera: {self.current_camera_id}"
+        else:
+            return "No operation in progress"
+    
     def get_camera_form_data(self):
         """Get current form data as a dictionary"""
         return {
-            'camera_name': self.camera_name_edit.text(),
-            'location': self.location_edit.text(),
-            'ip_address': self.ip_address_edit.text(),
+            'camera_name': self.camera_name_edit.text().strip(),
+            'location': self.location_edit.text().strip(),
+            'ip_address': self.ip_address_edit.text().strip(),
             'port': self.port_spin.value(),
-            'username': self.username_edit.text(),
-            'password': self.password_edit.text(),
-            'video_source': self.video_source_edit.text()
+            'username': self.username_edit.text().strip(),
+            'password': self.password_edit.text().strip(),
+            'video_source': self.video_source_edit.text().strip()
         }

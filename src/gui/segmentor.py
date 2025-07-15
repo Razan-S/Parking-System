@@ -516,6 +516,7 @@ class RoadSegmenterGUI(QMainWindow):
 
     def set_camera(self, camera_id):
         """Set the video path and load the first frame"""
+        self.config_manager.load_config()
         self.camera_id = camera_id
         
         # Reset all state when setting a new camera

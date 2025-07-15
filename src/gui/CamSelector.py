@@ -179,6 +179,33 @@ class CameraSelector(QWidget):
                 toggle_button.set_status(status)
                 break
 
+    def update_camera_statuses(self):
+        """Refresh camera data from JSON configuration and update UI"""
+        # Reload configuration from file
+        print("[CameraSelector] Updating Cameras Statuses")
+        self.config_manager.load_config()
+        cameras = self.config_manager.get_all_cameras()
+        
+        # Update internal data
+        new_cameras = [camera.get('camera_name', " ") for camera in cameras]
+        new_statuses = [camera.get('camera_status', CameraStatus.ERROR.value) for camera in cameras]
+        
+        # Store current selection to restore it
+        current_selection = self.get_selected_camera()
+        
+        # Update internal data
+        self.cameras = new_cameras
+        self.statuses = new_statuses
+        
+        # Just recreate the buttons without touching the layout
+        self.recreate_buttons()
+        
+        # Restore selection if possible
+        if current_selection and current_selection in self.cameras:
+            self.set_selected_camera(current_selection)
+        elif self.cameras:
+            self.set_selected_camera(self.cameras[0])
+
     def get_all_camera_statuses(self):
         """Get all camera statuses as a dictionary"""
         statuses = {}
@@ -186,13 +213,6 @@ class CameraSelector(QWidget):
             statuses[toggle_button.get_camera_name()] = toggle_button.status
         return statuses
     
-    def set_status_camera(self, camera_name, status):
-        """Set the status of a specific camera"""
-        for toggle_button in self.toggle_buttons:
-            if toggle_button.get_camera_name() == camera_name:
-                toggle_button.set_status(status)
-                break
-
     def on_config_button_clicked(self):
         """Handle the configuration button click"""
         self.selected_camera = self.get_selected_camera()
@@ -201,4 +221,59 @@ class CameraSelector(QWidget):
             self.camera_selected.emit(self.selected_camera)
         else:
             QMessageBox.warning(self, "No Camera Selected", "Please select a camera to configure.")
+
+    def recreate_buttons(self):
+        """Recreate only the camera buttons without touching the main layout"""
+        # Find the buttons layout (it's the second item in the main layout)
+        main_layout = self.layout()
+        if main_layout and main_layout.count() >= 2:
+            # Get the buttons layout (should be at index 1)
+            buttons_layout_item = main_layout.itemAt(1)
+            if buttons_layout_item and buttons_layout_item.layout():
+                buttons_layout = buttons_layout_item.layout()
+                
+                # Clear existing buttons
+                self.clear_buttons_only(buttons_layout)
+                
+                # Create new buttons
+                for i, camera in enumerate(self.cameras):
+                    status = self.statuses[i] if i < len(self.statuses) else CameraStatus.NOT_WORKING.value
+                    toggle_button = CameraToggleButton(camera, status)
+                    
+                    # Set the first camera as selected by default
+                    if i == 0:
+                        toggle_button.setChecked(True)
+                    
+                    # Connect signal to emit camera change
+                    toggle_button.toggled.connect(lambda checked, cam=camera: self.on_camera_changed(checked, cam))
+                    
+                    self.toggle_buttons.append(toggle_button)
+                    self.button_group.addButton(toggle_button)
+                    buttons_layout.addWidget(toggle_button)
+
+    def clear_buttons_only(self, buttons_layout):
+        """Clear only the camera buttons from the buttons layout"""
+        # Disconnect signals first
+        for button in self.toggle_buttons:
+            try:
+                button.toggled.disconnect()
+            except:
+                pass
         
+        # Clear the button group
+        if hasattr(self, 'button_group'):
+            self.button_group.setExclusive(False)
+            for button in self.button_group.buttons():
+                self.button_group.removeButton(button)
+        
+        # Remove widgets from the buttons layout
+        while buttons_layout.count():
+            child = buttons_layout.takeAt(0)
+            if child.widget():
+                child.widget().setParent(None)
+                child.widget().deleteLater()
+        
+        # Clear the buttons list and recreate button group
+        self.toggle_buttons = []
+        self.button_group = QButtonGroup(self)
+        self.button_group.setExclusive(True)
