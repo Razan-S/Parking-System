@@ -34,14 +34,14 @@ class CamCard(QWidget):
         # Create a container frame for the border (responsive to card size)
         container_frame = QFrame()
         container_frame.setObjectName("CamCardContainer")
-        container_frame.setFixedSize(314, 400)  # Exact size to fit within card bounds
-        # container_frame.setStyleSheet("""
-        #     QFrame#CamCardContainer {
-        #         border: 3px solid #D2042D;
-        #         background-color: #D2042D;
-        #         border-radius: 12px;
-        #     }
-        # """)
+        container_frame.setFixedSize(314, 400)
+        container_frame.setStyleSheet("""
+            QFrame#CamCardContainer {
+                border: 3px solid #2a2a2a;
+                background-color: #2a2a2a;
+                border-radius: 12px;
+            }
+        """)
         
         main_layout.addWidget(container_frame)
         
@@ -397,8 +397,8 @@ class CamCardFrame(QWidget):
         from PyQt6.QtWidgets import QSizePolicy
         content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(30)
-        content_layout.setContentsMargins(30, 30, 30, 30)
+        content_layout.setSpacing(20)
+        content_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignJustify)
         
         # Create rows for cards
         current_row_layout = None
@@ -428,15 +428,22 @@ class CamCardFrame(QWidget):
             # Add card to current row
             current_row_layout.addWidget(card)
         
-        # Add stretch to the last row if it's not full
-        if len(self.cameras) % self.cards_per_row != 0:
-            current_row_layout.addStretch()
+        # Handle centering in last row
+        card_count = len(self.cameras)
+        remaining = card_count % self.cards_per_row
+        if remaining != 0 and current_row_layout:
+            # Add stretch before first widget
+            current_row_layout.insertStretch(0, 1)
+            # Add stretch after last widget
+            current_row_layout.addStretch(1)
 
-        # Don't add stretch at the bottom - let content determine its own height
-        # This allows proper scrolling when content exceeds available space
-        
-        # Set scroll area content
-        self.scroll_area.setWidget(content_widget)
+        # Optional: center vertically if only one card total
+        if card_count == 1:
+            content_layout.insertStretch(0, 1)  # Top
+            content_layout.addStretch(1)       # Bottom
+
+        # Set the scroll area content
+        self.scroll_area.setWidget(content_widget)  
 
     def update_camera_cards(self):
         """Update camera cards with latest data"""
