@@ -73,7 +73,7 @@ class Window(QMainWindow):
         self.dashboard = Dashboard(cameras_name=self.camera_names, camera_statuses=self.camera_statuses)
         self.config_page = RoadSegmenterGUI()
 
-        self.dashboard.switch_to_config_page.connect(lambda cam: self.show_config_page(cam_name=cam))
+        self.dashboard.switch_to_config_page.connect(lambda camera: self.show_config_page(camera=camera))
         self.config_page.switch_to_dashboard_page.connect(self.show_dashboard)
         
         # Pass camera manager to config page so it can get frames
@@ -95,19 +95,17 @@ class Window(QMainWindow):
         """Switch to dashboard page"""
         self.stack_widget.setCurrentWidget(self.dashboard)
     
-    def show_config_page(self, cam_name=None):
+    def show_config_page(self, camera=None):
         """Switch to config page"""
-        if cam_name is None:
+        if camera is None:
             QMessageBox.warning(self, "No camera selected", "Please select a camera to configure.")
             return
     
-        camera = self.config_manager.get_camera_by_name(cam_name)
-        if camera:
-            camera_id = camera.get("camera_id", None)
-            if camera_id:
-                self.config_page.set_camera(camera_id)
-                self.stack_widget.setCurrentWidget(self.config_page)
-            else:
-                QMessageBox.warning(self, "Invalid camera", f"Camera {cam_name} does not have a valid camera_id.")
-        else:
-            QMessageBox.warning(self, "Camera not found", f"Camera {cam_name} not found in configuration.")
+        # camera = self.config_manager.get_camera_by_name(cam_name)
+        if camera.get("camera_id") is None:
+            cam_name = camera.get("camera_name", "Unknown")
+            QMessageBox.warning(self, "Invalid camera", f"Camera {cam_name} does not have a valid camera_id.")
+            return
+
+        self.config_page.set_camera(camera.get("camera_id"))
+        self.stack_widget.setCurrentWidget(self.config_page)

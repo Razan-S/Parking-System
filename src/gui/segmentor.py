@@ -29,6 +29,7 @@ class RoadSegmenterGUI(QMainWindow):
         self.current_coordinates = []
         self.frame_counter = 1
         self.saved_frames = []
+        self.existing_frames = []  # Initialize existing_frames to prevent AttributeError
         self.cap = None
         self.last_frame_time = None
         self.time_label = None

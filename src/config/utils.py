@@ -380,15 +380,42 @@ class CameraConfigManager:
         Returns:
             True if successful, False otherwise
         """
-        # Load latest configuration before removing
-        self.load_config()
-        
-        cameras = self.get_all_cameras()
-        for i, camera in enumerate(cameras):
-            if camera.get('camera_id') == camera_id and camera.get('camera_name') == camera_name:
-                del self._config_data['cameras'][i]
-                return self.save_config()
-        return False
+        try:
+            # Load latest configuration before removing
+            self.load_config()
+            
+            print(f"DEBUG: remove_camera called with ID: '{camera_id}', Name: '{camera_name}'")
+            
+            cameras = self.get_all_cameras()
+            print(f"DEBUG: Total cameras in config: {len(cameras)}")
+            
+            # Debug: Print all camera IDs and names
+            for i, camera in enumerate(cameras):
+                cam_id = camera.get('camera_id', 'MISSING')
+                cam_name = camera.get('camera_name', 'MISSING')
+                print(f"DEBUG: Camera {i}: ID='{cam_id}', Name='{cam_name}'")
+            
+            for i, camera in enumerate(cameras):
+                cam_id = camera.get('camera_id')
+                cam_name = camera.get('camera_name')
+                
+                print(f"DEBUG: Checking camera {i}: ID='{cam_id}' vs '{camera_id}', Name='{cam_name}' vs '{camera_name}'")
+                
+                if cam_id == camera_id and cam_name == camera_name:
+                    print(f"DEBUG: Found matching camera at index {i}, removing...")
+                    del self._config_data['cameras'][i]
+                    success = self.save_config()
+                    print(f"DEBUG: Save result: {success}")
+                    return success
+            
+            print(f"DEBUG: No matching camera found for ID: '{camera_id}', Name: '{camera_name}'")
+            return False
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in remove_camera: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     def remove_camera_legacy(self, camera_id: str) -> bool:
         """

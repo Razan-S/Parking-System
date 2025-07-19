@@ -5,8 +5,9 @@ from src.enums import CameraStatus
 from src.config.utils import CameraConfigManager
 
 class CameraToggleButton(QPushButton):
-    def __init__(self, camera_name, status=CameraStatus.NOT_WORKING.value, parent=None):
+    def __init__(self, camera_id, camera_name, status=CameraStatus.NOT_WORKING.value, parent=None):
         super().__init__(parent)
+        self.camera_id = camera_id
         self.camera_name = camera_name
         self.status = status  # "working", "error", "not_working"
         self.setCheckable(True)
@@ -69,9 +70,19 @@ class CameraToggleButton(QPushButton):
         
     def get_camera_name(self):
         return self.camera_name
+    
+    def get_camera_id(self):
+        return self.camera_id
+    
+    def get_camera(self):
+        return {
+            "camera_id": self.camera_id,
+            "camera_name": self.camera_name,
+            "camera_status": self.status
+        }
 
 class CameraSelector(QWidget):
-    camera_selected = pyqtSignal(str)  # Signal to emit when camera selection changes
+    camera_selected = pyqtSignal(dict)  # Signal to emit when camera selection changes
     camera_changed = pyqtSignal(str)  # Signal to emit when camera is toggled
 
     def __init__(self, parent=None):
@@ -80,8 +91,7 @@ class CameraSelector(QWidget):
         self.config_manager = CameraConfigManager()
         cameras = self.config_manager.get_all_cameras()
 
-        self.cameras = [camera.get('camera_name'," ") for camera in cameras]
-        self.statuses = [camera.get('camera_status', CameraStatus.ERROR.value) for camera in cameras]
+        self.cameras = cameras if cameras else []
         self.toggle_buttons = []
         self.button_group = QButtonGroup(self)
         self.button_group.setExclusive(True)
@@ -112,15 +122,18 @@ class CameraSelector(QWidget):
         
         # Create toggle buttons for each camera
         for i, camera in enumerate(self.cameras):
-            status = self.statuses[i] if i < len(self.statuses) else CameraStatus.NOT_WORKING.value
-            toggle_button = CameraToggleButton(camera, status)
+            status = camera.get('camera_status', CameraStatus.NOT_WORKING.value)
+            camera_name = camera.get('camera_name', f"Camera {i + 1}")
+            camera_id = camera.get('camera_id', f"cam_{i + 1}")
+            
+            toggle_button = CameraToggleButton(camera_id=camera_id, camera_name=camera_name, status=status)
             
             # Set the first camera as selected by default
             if i == 0:
                 toggle_button.setChecked(True)
             
             # Connect signal to emit camera change
-            toggle_button.toggled.connect(lambda checked, cam=camera: self.on_camera_changed(checked, cam))
+            toggle_button.toggled.connect(lambda checked, cam=camera.get("camera_name", "Unknown"): self.on_camera_changed(checked, cam))
             
             self.toggle_buttons.append(toggle_button)
             self.button_group.addButton(toggle_button)
@@ -162,7 +175,7 @@ class CameraSelector(QWidget):
         """Get the currently selected camera"""
         for toggle_button in self.toggle_buttons:
             if toggle_button.isChecked():
-                return toggle_button.get_camera_name()
+                return toggle_button.get_camera()
         return None
 
     def set_selected_camera(self, camera_name):
@@ -186,25 +199,22 @@ class CameraSelector(QWidget):
         self.config_manager.load_config()
         cameras = self.config_manager.get_all_cameras()
         
-        # Update internal data
-        new_cameras = [camera.get('camera_name', " ") for camera in cameras]
-        new_statuses = [camera.get('camera_status', CameraStatus.ERROR.value) for camera in cameras]
-        
         # Store current selection to restore it
         current_selection = self.get_selected_camera()
+        current_selection_name = current_selection.get('camera_name') if current_selection else None
         
-        # Update internal data
-        self.cameras = new_cameras
-        self.statuses = new_statuses
+        # Update internal data - store full camera objects, not just names
+        self.cameras = cameras if cameras else []
         
         # Just recreate the buttons without touching the layout
         self.recreate_buttons()
         
         # Restore selection if possible
-        if current_selection and current_selection in self.cameras:
-            self.set_selected_camera(current_selection)
+        if current_selection_name:
+            self.set_selected_camera(current_selection_name)
         elif self.cameras:
-            self.set_selected_camera(self.cameras[0])
+            first_camera_name = self.cameras[0].get('camera_name', '')
+            self.set_selected_camera(first_camera_name)
 
     def get_all_camera_statuses(self):
         """Get all camera statuses as a dictionary"""
@@ -237,15 +247,18 @@ class CameraSelector(QWidget):
                 
                 # Create new buttons
                 for i, camera in enumerate(self.cameras):
-                    status = self.statuses[i] if i < len(self.statuses) else CameraStatus.NOT_WORKING.value
-                    toggle_button = CameraToggleButton(camera, status)
+                    status = camera.get('camera_status', CameraStatus.NOT_WORKING.value)
+                    camera_name = camera.get('camera_name', f"Camera {i + 1}")
+                    camera_id = camera.get('camera_id', f"cam_{i + 1}")
+                    
+                    toggle_button = CameraToggleButton(camera_id=camera_id, camera_name=camera_name, status=status)
                     
                     # Set the first camera as selected by default
                     if i == 0:
                         toggle_button.setChecked(True)
                     
                     # Connect signal to emit camera change
-                    toggle_button.toggled.connect(lambda checked, cam=camera: self.on_camera_changed(checked, cam))
+                    toggle_button.toggled.connect(lambda checked, cam=camera_name: self.on_camera_changed(checked, cam))
                     
                     self.toggle_buttons.append(toggle_button)
                     self.button_group.addButton(toggle_button)

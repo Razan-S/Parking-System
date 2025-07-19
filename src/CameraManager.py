@@ -61,6 +61,16 @@ class CameraWorker(QObject):
         if not self.running:
             return
             
+        # Reload camera list from JSON configuration to pick up new cameras
+        try:
+            config = self.config_manager.load_config()
+            current_camera_ids = [camera.get('camera_id') for camera in config.get('cameras', []) if camera.get('camera_id')]
+            self.camera_ids = current_camera_ids
+            print(f"Reloaded {len(current_camera_ids)} cameras from configuration")
+        except Exception as e:
+            print(f"Error reloading camera configuration: {e}")
+            # Fall back to existing camera_ids if reload fails
+            
         print("Processing all cameras...")
         for camera_id in self.camera_ids:
             if not self.running:
@@ -220,10 +230,24 @@ class CameraManager(QObject):
     def add_camera(self, camera_id: str, **kwargs):
         """Add a new camera to the configuration."""
         try:
+            # First add to config manager (saves to JSON)
+            self.worker.config_manager.add_camera(camera_id, **kwargs)
+            
+            # Update local camera list
             if camera_id not in self.camera_ids:
                 self.camera_ids.append(camera_id)
+            
+            # Force worker to reload camera list from JSON to ensure consistency
+            try:
+                config = self.worker.config_manager.load_config()
+                worker_camera_ids = [camera.get('camera_id') for camera in config.get('cameras', []) if camera.get('camera_id')]
+                self.worker.camera_ids = worker_camera_ids
+                print(f"Worker camera list updated: {worker_camera_ids}")
+            except Exception as e:
+                print(f"Error updating worker camera list: {e}")
+                # Fallback to manual update
                 self.worker.camera_ids = self.camera_ids.copy()
-            self.worker.config_manager.add_camera(camera_id, **kwargs)
+            
             print(f"Camera {camera_id} added successfully.")
         except Exception as e:
             self.error_occurred.emit(camera_id, f"Failed to add camera: {str(e)}")

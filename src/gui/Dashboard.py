@@ -9,7 +9,7 @@ from src.enums import CameraStatus, ParkingStatus
 import os
 
 class Dashboard(QWidget):
-    switch_to_config_page = pyqtSignal(str)
+    switch_to_config_page = pyqtSignal(dict)
 
     def __init__(self, cameras_name=None, camera_statuses=None):
         super().__init__()
@@ -177,7 +177,6 @@ class Dashboard(QWidget):
                 if self.config_manager.validate_camera_exists(camera_id, camera_name):
                     success = self.config_manager.update_camera_status(camera_id, camera_name, status)
 
-
                     if success:
                         self.refresh_camera_data()
                     else:
@@ -279,9 +278,18 @@ class Dashboard(QWidget):
     def show_config_popup(self):
         """Show the camera configuration popup"""
         config_popup = ConfigPopup()
+        
+        # Connect to the configuration_changed signal
+        config_popup.configuration_changed.connect(self.refresh_ui_after_config_changes)
+        
         result = config_popup.exec()
         
         # If user clicked OK or Apply, refresh the dashboard
         if result == QDialog.DialogCode.Accepted:
             self.refresh_camera_data()
             self.refresh_camera_cards()
+    
+    def refresh_ui_after_config_changes(self):
+        """Refresh UI after configuration changes"""
+        self.refresh_camera_data()
+        self.refresh_camera_cards()

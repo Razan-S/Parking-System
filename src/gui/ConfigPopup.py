@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QListWidget, QLineEdit, QSpinBox, QGroupBox,
     QFormLayout, QWidget, QSplitter, QMessageBox, QListWidgetItem
 )
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 from src.config.utils import CameraConfigManager
 from datetime import datetime
 from random import randint
@@ -12,6 +12,9 @@ import os
 import shutil
 
 class ConfigPopup(QDialog):
+    # Signal to notify when configuration changes are made
+    configuration_changed = pyqtSignal()
+    
     def __init__(self):
         super().__init__()
         
@@ -25,6 +28,9 @@ class ConfigPopup(QDialog):
         # Track current mode and camera being edited
         self.current_mode = None  # "add" or "edit"
         self.current_camera_id = None  # ID of camera being edited, None for new
+        
+        # Track if changes were made during this session
+        self.changes_made = False
         
         # Setup UI
         self.setup_ui()
@@ -152,15 +158,6 @@ class ConfigPopup(QDialog):
         config_group.setLayout(form_layout)
         layout.addWidget(config_group)
         
-        # # Connection test button
-        # test_layout = QHBoxLayout()
-        # self.test_connection_button = QPushButton("Test Connection")
-        # self.test_connection_button.clicked.connect(self.test_connection)
-        # self.test_connection_button.setEnabled(False)
-        # test_layout.addWidget(self.test_connection_button)
-        # test_layout.addStretch()
-        # layout.addLayout(test_layout)
-        
         # Spacer
         layout.addStretch()
         
@@ -192,15 +189,13 @@ class ConfigPopup(QDialog):
             camera_data = current_item.data(Qt.ItemDataRole.UserRole)
             self.populate_camera_form(camera_data)
             self.delete_button.setEnabled(True)
-            # self.test_connection_button.setEnabled(True)
-            
+
             # Set edit mode
             self.current_mode = "edit"
             self.current_camera_id = camera_data.get('camera_id')
         else:
             self.clear_camera_form()
             self.delete_button.setEnabled(False)
-            # self.test_connection_button.setEnabled(False)
             
             # Clear mode when no selection
             self.current_mode = None
@@ -263,58 +258,81 @@ class ConfigPopup(QDialog):
         """Delete the selected camera"""
         current_item = self.camera_list.currentItem()
         if not current_item:
+            QMessageBox.warning(self, "Warning", "No camera selected for deletion.")
             return
             
         camera_data = current_item.data(Qt.ItemDataRole.UserRole)
+        if not camera_data:
+            QMessageBox.critical(self, "Error", "No camera data found for selected item.")
+            return
+            
         camera_name = camera_data.get('camera_name', 'Unknown')
+        camera_id = camera_data.get('camera_id', 'Unknown')
+        
+        # Debug output
+        print(f"DEBUG: Attempting to delete camera: {camera_name} (ID: {camera_id})")
+        print(f"DEBUG: self.current_camera_id: {self.current_camera_id}")
+        print(f"DEBUG: camera_data: {camera_data}")
         
         reply = QMessageBox.question(
             self, 
             "Delete Camera", 
-            f"Are you sure you want to delete camera '{camera_name}'?",
+            f"Are you sure you want to delete camera '{camera_name}' (ID: {camera_id})?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            # Load latest configuration before deleting
-            self.camera_manager.load_config()
-            
-            print(f"Deleting camera: {camera_name} (ID: {self.current_camera_id})")
-            result = self.camera_manager.remove_camera(camera_id=self.current_camera_id, camera_name=camera_name)
-            if result:
-                row = self.camera_list.row(current_item)
-                self.camera_list.takeItem(row)
-                self.clear_camera_form()
-                QMessageBox.information(
-                    self, 
-                    "Success", 
-                    f"Camera '{camera_name}' deleted successfully."
-                )
-            else:
+            try:
+                # Load latest configuration before deleting
+                self.camera_manager.load_config()
+                
+                # Use camera_id from camera_data instead of self.current_camera_id
+                print(f"DEBUG: Calling remove_camera with ID: {camera_id}, Name: {camera_name}")
+                result = self.camera_manager.remove_camera(camera_id=camera_id, camera_name=camera_name)
+                
+                print(f"DEBUG: remove_camera returned: {result}")
+                
+                if result:
+                    row = self.camera_list.row(current_item)
+                    self.camera_list.takeItem(row)
+                    self.clear_camera_form()
+                    
+                    # Reset mode and current camera ID
+                    self.current_mode = None
+                    self.current_camera_id = None
+                    
+                    # Mark that changes were made
+                    self.changes_made = True
+                    
+                    # Create a message box that auto-closes
+                    msg_box = QMessageBox(self)
+                    msg_box.setWindowTitle("Success")
+                    msg_box.setText(f"Camera '{camera_name}' deleted successfully.")
+                    msg_box.setIcon(QMessageBox.Icon.Information)
+                    msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+                    
+                    # Auto-close after 2 seconds
+                    timer = QTimer()
+                    timer.timeout.connect(msg_box.accept)
+                    timer.start(2000)
+                    
+                    msg_box.exec()
+                else:
+                    QMessageBox.critical(
+                        self, 
+                        "Error", 
+                        f"Failed to delete camera '{camera_name}' (ID: {camera_id}).\n\n"
+                        "The camera may not exist in the configuration file or "
+                        "there was an error saving the changes."
+                    )
+            except Exception as e:
+                print(f"DEBUG: Exception during deletion: {str(e)}")
                 QMessageBox.critical(
                     self, 
                     "Error", 
-                    f"Failed to delete camera '{camera_name}'."
+                    f"An error occurred while deleting camera '{camera_name}':\n\n{str(e)}"
                 )
-              
-    def test_connection(self):
-        """Test camera connection (placeholder function)"""
-        ip_address = self.ip_address_edit.text()
-        port = self.port_spin.value()
-        
-        if not ip_address:
-            QMessageBox.warning(self, "Warning", "Please enter an IP address to test.")
-            return
-            
-        # Placeholder for actual connection test
-        QMessageBox.information(
-            self, 
-            "Connection Test", 
-            f"Connection test for {ip_address}:{port}\n\n"
-            "Note: This is a placeholder. Actual connection testing "
-            "functionality will be implemented later."
-        )
      
     def apply_changes(self):
         """Apply changes without closing dialog"""
@@ -331,6 +349,9 @@ class ConfigPopup(QDialog):
                 )
                 return
                 
+            # Mark that changes were made
+            self.changes_made = True
+            
             # Reload the camera list to reflect changes
             self.load_cameras()
             
@@ -528,3 +549,12 @@ class ConfigPopup(QDialog):
             'password': self.password_edit.text().strip(),
             'video_source': self.video_source_edit.text().strip()
         }
+    
+    def closeEvent(self, event):
+        """Handle dialog close event"""
+        # Emit signal if any changes were made during this session
+        if self.changes_made:
+            self.configuration_changed.emit()
+        
+        # Accept the close event
+        super().closeEvent(event)
