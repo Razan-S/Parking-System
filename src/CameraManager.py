@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QThread, QRunnable, QThreadPool
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QThread, QRunnable, QThreadPool, pyqtSlot
 from PyQt6.QtWidgets import QMessageBox
 from src.config.utils import CameraConfigManager
 from src.enums import ParkingStatus, CameraStatus
@@ -11,6 +11,48 @@ import traceback
 
 from src.yolo import DetectionModule
 
+class CameraFetchingWorkerSignals(QObject):
+    """Defines the signals available from a running camera worker thread."""
+    finished = pyqtSignal(str, object)  # camera_id, result
+
+class CameraFetchingWorker(QRunnable):
+    """Worker for processing a single camera"""
+
+    def __init__(self, fn, camera_id):
+        super().__init__()
+        self.fn = fn
+        self.camera_id = camera_id
+        self.signals = CameraFetchingWorkerSignals()
+
+    @pyqtSlot()
+    def run(self):
+        try:
+            result = self.fn(self.camera_id)
+            # Check if signals object still exists before emitting
+            if hasattr(self, 'signals') and self.signals is not None:
+                try:
+                    self.signals.finished.emit(self.camera_id, result)
+                except RuntimeError as e:
+                    if "has been deleted" in str(e):
+                        print(f"Signals object deleted during emission for camera {self.camera_id}")
+                    else:
+                        print(f"Signal emission error for camera {self.camera_id}: {e}")
+        except Exception as e:
+            print(f"Worker thread error for camera {self.camera_id}: {str(e)}")
+            # Only print traceback if it's not a shutdown-related error
+            if "has been deleted" not in str(e):
+                traceback.print_exc()
+            
+            # Try to emit finished signal with None result
+            if hasattr(self, 'signals') and self.signals is not None:
+                try:
+                    self.signals.finished.emit(self.camera_id, None)
+                except RuntimeError as signal_error:
+                    if "has been deleted" in str(signal_error):
+                        print(f"Signals object deleted during error emission for camera {self.camera_id}")
+                    else:
+                        print(f"Error signal emission failed for camera {self.camera_id}: {signal_error}")
+
 class CameraWorker(QObject):
     """Worker class that will be moved to a separate thread"""
     # Simplified signals - no data passing, just notifications
@@ -22,11 +64,15 @@ class CameraWorker(QObject):
         super().__init__()
         self.config_manager = CameraConfigManager()
         self.camera_ids = camera_ids
+        self.active_workers = 0  # Track active workers
         self.detection_module = DetectionModule()
         self.running = False
+        self.is_fetching = False # Flag to prevent overlapping fetches
         self.latest_image_dir = os.path.join(os.path.abspath(os.curdir), "image", "latest")
         self.interval = interval
         self.timer = None  # Will be created in the worker thread
+
+        self.threadpool = QThreadPool()
         
         # Create latest image directory if it doesn't exist
         os.makedirs(self.latest_image_dir, exist_ok=True)
@@ -55,12 +101,18 @@ class CameraWorker(QObject):
         if self.timer is not None:
             self.timer.setInterval(interval)
             print(f"Timer interval updated to {interval}ms")
-    
+
     def process_all_cameras(self):
         """Process all cameras in the list - called by timer"""
         if not self.running:
             return
-            
+        
+        if self.is_fetching:
+            print("Already fetching, skipping this cycle")
+            return
+        
+        self.is_fetching = True
+        
         # Reload camera list from JSON configuration to pick up new cameras
         try:
             config = self.config_manager.load_config()
@@ -70,26 +122,68 @@ class CameraWorker(QObject):
         except Exception as e:
             print(f"Error reloading camera configuration: {e}")
             # Fall back to existing camera_ids if reload fails
-            
-        print("Processing all cameras...")
+        
+        # Double-check we're still running after config reload
+        if not self.running:
+            self.is_fetching = False
+            return
+        
+        self.active_workers = len(self.camera_ids)
+        
+        print("Starting parallel camera processing...")
         for camera_id in self.camera_ids:
             if not self.running:
+                # If we stopped running during the loop, reduce active workers count
+                self.active_workers = 0
+                self.is_fetching = False
                 break
-            self.process_single_camera(camera_id)
+            
+            # Create worker for each camera
+            worker = CameraFetchingWorker(self.process_single_camera, camera_id)
+            worker.signals.finished.connect(self.handle_worker_finished)
+            self.threadpool.start(worker)
+
+    def handle_worker_finished(self, camera_id: str, result: object):
+        """Handle worker finished signal"""
+        if result is None:
+            print(f"Worker for camera {camera_id} failed")
+            # Don't emit error here, let process_single_camera handle it
+        
+        self.active_workers -= 1
+        if self.active_workers <= 0:
+            self.is_fetching = False
+            print("All workers finished fetching")
+            
+        # If we're not running anymore, reset the counter to prevent hanging
+        if not self.running:
+            self.active_workers = 0
+            self.is_fetching = False
     
     def process_single_camera(self, camera_id: str):
         """Process a single camera - capture frame, detect, save to JSON, and notify UI"""
         try:
+            # Check if we're still running before processing
+            if not self.running:
+                print(f"Camera worker shutting down, skipping processing for {camera_id}")
+                return
+            
             # Get camera configuration
             camera_config = self.config_manager.get_camera_by_id(camera_id)
             if not camera_config:
-                self.error_occurred.emit(camera_id, f"Camera configuration not found for {camera_id}")
+                if self.running:  # Only emit if still running
+                    self.error_occurred.emit(camera_id, f"Camera configuration not found for {camera_id}")
                 return
             
             # Capture frame (non-blocking)
-            frame = self.capture_frame_async(camera_id)
+            frame = self.get_latest_frame_for_camera(camera_id)
             if frame is None:
-                self.error_occurred.emit(camera_id, f"Failed to capture frame from {camera_id}")
+                if self.running:  # Only emit if still running
+                    self.error_occurred.emit(camera_id, f"Failed to capture frame from {camera_id}")
+                return
+            
+            # Check again if we're still running after frame capture (which can take time)
+            if not self.running:
+                print(f"Camera worker shutting down during processing for {camera_id}")
                 return
             
             # Save the frame as an image file
@@ -114,23 +208,50 @@ class CameraWorker(QObject):
             
             print(f"Camera {camera_id}: Processing complete, status = {parking_status}")
             
-            # Notify UI to refresh data from JSON (no data passing)
-            self.data_updated.emit(camera_id)
-            self.camera_processed.emit(camera_id)
+            # Only emit signals if we're still running and object exists
+            if self.running:
+                try:
+                    # Notify UI to refresh data from JSON (no data passing)
+                    self.data_updated.emit(camera_id)
+                    self.camera_processed.emit(camera_id)
+                except RuntimeError as e:
+                    if "has been deleted" in str(e):
+                        print(f"Worker object deleted during signal emission for {camera_id}")
+                    else:
+                        raise
                 
         except Exception as e:
-            error_msg = f"Error processing camera {camera_id}: {str(e)}"
-            print(error_msg)
-            print(traceback.format_exc())
-            
-            # Update camera status to error in JSON
-            try:
-                self.config_manager.update_camera_status_legacy(camera_id, CameraStatus.ERROR.value)
-                self.data_updated.emit(camera_id)  # Notify UI even on error
-            except:
-                pass
+            # Only handle errors if we're still running
+            if self.running:
+                error_msg = f"Error processing camera {camera_id}: {str(e)}"
+                print(error_msg)
+                print(traceback.format_exc())
                 
-            self.error_occurred.emit(camera_id, error_msg)
+                # Update camera status to error in JSON
+                try:
+                    self.config_manager.update_camera_status_legacy(camera_id, CameraStatus.ERROR.value)
+                    if self.running:  # Double check before emitting
+                        try:
+                            self.data_updated.emit(camera_id)  # Notify UI even on error
+                        except RuntimeError as signal_error:
+                            if "has been deleted" in str(signal_error):
+                                print(f"Worker object deleted during error signal emission for {camera_id}")
+                            else:
+                                print(f"Signal error: {signal_error}")
+                except Exception as config_error:
+                    print(f"Failed to update camera status to error: {config_error}")
+                    
+                # Try to emit error signal if object still exists
+                try:
+                    if self.running:
+                        self.error_occurred.emit(camera_id, error_msg)
+                except RuntimeError as signal_error:
+                    if "has been deleted" in str(signal_error):
+                        print(f"Worker object deleted during error signal emission for {camera_id}")
+                    else:
+                        print(f"Error signal emission failed: {signal_error}")
+            else:
+                print(f"Camera worker shutting down, ignoring error for {camera_id}: {str(e)}")
     
     def save_frame_as_image(self, camera_id: str, frame: np.ndarray) -> str:
         """Save a frame as an image file and return the path"""
@@ -153,22 +274,13 @@ class CameraWorker(QObject):
         except Exception as e:
             print(f"Error saving frame as image for camera {camera_id}: {str(e)}")
             return None
-    
-    def capture_frame_async(self, camera_id: str) -> np.ndarray:
-        """Capture a single frame from the camera with timeout to prevent blocking"""
-        try:
-            # Use the utility function to capture one frame with timeout
-            frame = capture_one_frame_silent(camera_id)
-            return frame
-        except Exception as e:
-            print(f"Error capturing frame from {camera_id}: {str(e)}")
-            return None
-    
+
     def get_latest_frame_for_camera(self, camera_id: str) -> np.ndarray:
         """Get the latest frame for a specific camera (for config page)"""
         try:
             print(f"Getting latest frame for camera {camera_id}")
-            return self.capture_frame_async(camera_id)
+            frame = capture_one_frame_silent(camera_id)
+            return frame
         except Exception as e:
             print(f"Error getting latest frame for {camera_id}: {str(e)}")
             return None
@@ -276,41 +388,56 @@ class CameraManager(QObject):
         
         def capture_and_emit():
             try:
-                # Check if the object still exists
+                # Check if the object still exists and is still running
                 strong_self = weak_self()
-                if strong_self is None:
-                    print("CameraManager object has been deleted, skipping frame capture")
+                if strong_self is None or not strong_self.running:
+                    print("CameraManager object deleted or stopped, skipping frame capture")
                     return
                 
                 frame = strong_self.worker.get_latest_frame_for_camera(camera_id)
                 if frame is not None:
                     # Check again before emitting
-                    if weak_self() is not None:
-                        strong_self.frame_ready.emit(camera_id, frame)
+                    strong_self_check = weak_self()
+                    if strong_self_check is not None and strong_self_check.running:
+                        try:
+                            strong_self_check.frame_ready.emit(camera_id, frame)
+                        except RuntimeError as e:
+                            if "has been deleted" in str(e):
+                                print(f"CameraManager deleted during frame emission for {camera_id}")
                 else:
-                    if weak_self() is not None:
-                        strong_self.error_occurred.emit(camera_id, "Failed to capture frame for config")
+                    strong_self_check = weak_self()
+                    if strong_self_check is not None and strong_self_check.running:
+                        try:
+                            strong_self_check.error_occurred.emit(camera_id, "Failed to capture frame for config")
+                        except RuntimeError as e:
+                            if "has been deleted" in str(e):
+                                print(f"CameraManager deleted during error emission for {camera_id}")
             except Exception as e:
                 print(f"Error in frame capture thread: {str(e)}")
                 # Don't try to emit signals if object might be deleted
                 strong_self = weak_self()
-                if strong_self is not None:
+                if strong_self is not None and strong_self.running:
                     try:
                         strong_self.error_occurred.emit(camera_id, f"Error getting frame for config: {str(e)}")
-                    except:
-                        print("Failed to emit error signal - object may be deleted")
+                    except RuntimeError as signal_error:
+                        if "has been deleted" in str(signal_error):
+                            print("CameraManager deleted during error signal emission")
         
-        # Run in a separate thread to avoid blocking UI
-        class FrameCaptureRunnable(QRunnable):
-            def __init__(self, capture_func):
-                super().__init__()
-                self.capture_func = capture_func
+        # Only start the thread if we're still running
+        if self.running:
+            # Run in a separate thread to avoid blocking UI
+            class FrameCaptureRunnable(QRunnable):
+                def __init__(self, capture_func):
+                    super().__init__()
+                    self.capture_func = capture_func
+                
+                def run(self):
+                    self.capture_func()
             
-            def run(self):
-                self.capture_func()
-        
-        runnable = FrameCaptureRunnable(capture_and_emit)
-        QThreadPool.globalInstance().start(runnable)
+            runnable = FrameCaptureRunnable(capture_and_emit)
+            QThreadPool.globalInstance().start(runnable)
+        else:
+            print(f"CameraManager not running, skipping frame capture for {camera_id}")
         
     def shutdown(self):
         """Properly shutdown the camera manager and clean up resources"""
