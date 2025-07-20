@@ -95,6 +95,28 @@ class CameraWorker(QObject):
             self.timer = None
         print("Timer stopped and cleaned up in worker thread")
     
+    def force_stop_workers(self):
+        """Force stop all active workers in the thread pool"""
+        print("Force stopping all active workers...")
+        self.running = False
+        self.is_fetching = False
+        self.active_workers = 0
+        
+        if hasattr(self, 'threadpool'):
+            # Clear all pending tasks immediately
+            self.threadpool.clear()
+            print("Cleared pending thread pool tasks")
+            
+            # Try to wait for active threads briefly
+            active_count = self.threadpool.activeThreadCount()
+            if active_count > 0:
+                print(f"Waiting briefly for {active_count} active workers...")
+                if not self.threadpool.waitForDone(500):  # Only wait 0.5 seconds
+                    remaining = self.threadpool.activeThreadCount()
+                    print(f"Force stopping {remaining} workers that didn't finish")
+                # Note: QThreadPool doesn't have a force terminate method for individual workers
+                # but setting self.running = False will cause them to exit gracefully
+    
     def set_interval(self, interval: int):
         """Set the timer interval"""
         self.interval = interval
@@ -444,16 +466,39 @@ class CameraManager(QObject):
         print("Shutting down CameraManager...")
         self.stop_monitoring()
         
-        # Stop the worker thread properly
+        # Force stop all active workers first
+        if hasattr(self, 'worker'):
+            self.worker.force_stop_workers()
+        
+        # Stop the thread pool workers with shorter timeout
+        if hasattr(self, 'worker') and hasattr(self.worker, 'threadpool'):
+            print("Stopping thread pool workers...")
+            self.worker.threadpool.clear()  # Clear pending tasks
+            
+            # Check if there are any active threads first
+            active_count = self.worker.threadpool.activeThreadCount()
+            if active_count > 0:
+                print(f"Waiting for {active_count} active thread pool workers to finish...")
+                # Only wait 1 second for thread pool workers
+                if not self.worker.threadpool.waitForDone(1000):
+                    remaining = self.worker.threadpool.activeThreadCount()
+                    print(f"Force terminating {remaining} remaining thread pool workers")
+                else:
+                    print("All thread pool workers finished")
+            else:
+                print("No active thread pool workers to wait for")
+        
+        # Stop the worker thread with shorter timeout
         if hasattr(self, 'worker_thread') and self.worker_thread.isRunning():
+            print("Stopping main worker thread...")
             # Request thread to quit
             self.worker_thread.quit()
             
-            # Wait for thread to finish gracefully
-            if not self.worker_thread.wait(3000):
+            # Wait only 1.5 seconds for graceful shutdown
+            if not self.worker_thread.wait(1500):
                 print("Force terminating worker thread...")
                 self.worker_thread.terminate()
-                self.worker_thread.wait(1000)
+                self.worker_thread.wait(500)  # Only wait 0.5 seconds for termination
         
         print("CameraManager shutdown complete")
     

@@ -10,6 +10,7 @@ def main():
     window = Window()
     window.show()
     app.exec()
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()

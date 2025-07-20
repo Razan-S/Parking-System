@@ -1,5 +1,5 @@
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMainWindow, QWidget, QStackedLayout, QVBoxLayout, QLabel, QMessageBox
+from PyQt6.QtCore import Qt, QThreadPool, QTimer
+from PyQt6.QtWidgets import QMainWindow, QWidget, QStackedLayout, QVBoxLayout, QLabel, QMessageBox, QApplication
 from src.gui.segmentor import RoadSegmenterGUI
 from src.gui.Dashboard import Dashboard
 from src.config.utils import CameraConfigManager
@@ -109,3 +109,79 @@ class Window(QMainWindow):
 
         self.config_page.set_camera(camera.get("camera_id"))
         self.stack_widget.setCurrentWidget(self.config_page)
+
+    def closeEvent(self, event):
+        """Handle window close event"""
+        reply = QMessageBox.question(self, 'Exit', 'Are you sure you want to exit?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            # Accept the close event immediately to close the window
+            event.accept()
+            
+            # Use QTimer to defer cleanup so window closes immediately
+            QTimer.singleShot(100, self.shutdown_threads_deferred)
+            
+        else:
+            event.ignore()
+    
+    def shutdown_threads_deferred(self):
+        """Shutdown threads after the window has closed"""
+        try:
+            self.shutdown_threads()
+        except Exception as e:
+            print(f"Error during deferred shutdown: {e}")
+        finally:
+            # Force quit the application after cleanup
+            QApplication.instance().quit()
+    
+    def shutdown_threads(self):
+        """Shutdown all threads and clean up resources"""
+        print("Shutting down application threads...")
+        
+        try:
+            # Shutdown dashboard camera manager threads first
+            if hasattr(self, 'dashboard') and hasattr(self.dashboard, 'camera_manager'):
+                print("Shutting down camera manager...")
+                self.dashboard.camera_manager.shutdown()
+        except Exception as e:
+            print(f"Error shutting down camera manager: {e}")
+        
+        try:
+            # Clean up dashboard resources
+            if hasattr(self, 'dashboard'):
+                print("Cleaning up dashboard...")
+                self.dashboard.cleanup()
+        except Exception as e:
+            print(f"Error cleaning up dashboard: {e}")
+        
+        try:
+            # Clean up config page resources if it has any
+            if hasattr(self, 'config_page') and hasattr(self.config_page, 'cleanup'):
+                print("Cleaning up config page...")
+                self.config_page.cleanup()
+        except Exception as e:
+            print(f"Error cleaning up config page: {e}")
+        
+        # Check for any remaining threads with shorter timeout
+        try:
+            thread_pool = QThreadPool.globalInstance()
+            active_count = thread_pool.activeThreadCount()
+            if active_count > 0:
+                print(f"Waiting for {active_count} remaining global threads...")
+                # Clear any remaining tasks
+                thread_pool.clear()
+                # Only wait 2 seconds for global thread pool
+                if not thread_pool.waitForDone(2000):
+                    remaining = thread_pool.activeThreadCount()
+                    print(f"Warning: {remaining} threads still active after timeout")
+                else:
+                    print("All threads successfully terminated")
+            else:
+                print("No remaining global threads to clean up")
+        except Exception as e:
+            print(f"Error during thread pool cleanup: {e}")
+        
+        print("Thread shutdown complete")
+
+            

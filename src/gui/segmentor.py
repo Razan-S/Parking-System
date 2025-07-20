@@ -562,6 +562,11 @@ class RoadSegmenterGUI(QMainWindow):
         self.cap = None
         self.ui_initialized = False
 
+    def cleanup(self):
+        """Public cleanup method to be called from main window"""
+        print("Segmentor cleanup called")
+        self.closeEvent()
+
     def is_changed(self):
         """Check if there are any changes to the saved frames"""
         return self.saved_frames != self.existing_frames or self.current_coordinates
