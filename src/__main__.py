@@ -5,6 +5,10 @@ from src.gui.window import Window
 
 def main():
     app = QApplication(sys.argv)
+    app.setApplicationName("Illegal Parking Monitor")
+    app.setApplicationDisplayName("Illegal Parking Monitor")
+    app.setApplicationVersion("1.0")
+    app.setOrganizationName("Parking System")
     app.setStyle('Fusion')
 
     # Check for GPU usage - can be set via command line arg or environment variable
