@@ -60,12 +60,12 @@ class CameraWorker(QObject):
     error_occurred = pyqtSignal(str, str)  # camera_id, error_message
     camera_processed = pyqtSignal(str)  # camera_id - processing complete notification
     
-    def __init__(self, camera_ids: list[str], interval: int = 5000):
+    def __init__(self, camera_ids: list[str], interval: int = 5000, use_gpu: bool = False):
         super().__init__()
         self.config_manager = CameraConfigManager()
         self.camera_ids = camera_ids
         self.active_workers = 0  # Track active workers
-        self.detection_module = DetectionModule()
+        self.detection_module = DetectionModule(use_gpu=use_gpu)
         self.running = False
         self.is_fetching = False # Flag to prevent overlapping fetches
         self.latest_image_dir = os.path.join(os.path.abspath(os.curdir), "image", "latest")
@@ -314,12 +314,12 @@ class CameraManager(QObject):
     camera_processed = pyqtSignal(str)  # camera_id - processing complete
     frame_ready = pyqtSignal(str, np.ndarray)  # For config page only - temporary frame display
     
-    def __init__(self, camera_ids: list[str], interval: int = 5000):
+    def __init__(self, camera_ids: list[str], interval: int = 5000, use_gpu: bool = False):
         super().__init__()
         
         # Create worker thread
         self.worker_thread = QThread()
-        self.worker = CameraWorker(camera_ids, interval)
+        self.worker = CameraWorker(camera_ids, interval, use_gpu)
         self.worker.moveToThread(self.worker_thread)
         
         # Connect worker signals to our signals (forward them)

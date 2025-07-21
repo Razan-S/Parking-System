@@ -6,8 +6,11 @@ from src.config.utils import CameraConfigManager
 import os
 
 class Window(QMainWindow):
-    def __init__(self):
+    def __init__(self, use_gpu=False):
         super().__init__()
+        
+        # Store GPU preference
+        self.use_gpu = use_gpu
 
         # Initialize camera config manager
         self.config_manager = CameraConfigManager()
@@ -70,7 +73,7 @@ class Window(QMainWindow):
     def create_content_area(self, main_layout):
         """Create the content area where different pages can be displayed"""
         # Create pages
-        self.dashboard = Dashboard(cameras_name=self.camera_names, camera_statuses=self.camera_statuses)
+        self.dashboard = Dashboard(cameras_name=self.camera_names, camera_statuses=self.camera_statuses, use_gpu=self.use_gpu)
         self.config_page = RoadSegmenterGUI()
 
         self.dashboard.switch_to_config_page.connect(lambda camera: self.show_config_page(camera=camera))
