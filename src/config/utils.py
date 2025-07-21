@@ -96,6 +96,16 @@ class CameraConfigManager:
         
         return self._config_data.get('cameras', [])
     
+    def get_camera_ids(self) -> List[str]:
+        """
+        Get list of all camera IDs from configuration
+        
+        Returns:
+            List of camera IDs
+        """
+        cameras = self.get_all_cameras()
+        return [camera.get('camera_id') for camera in cameras if camera.get('camera_id')]
+    
     def get_camera_by_id_and_name(self, camera_id: str, camera_name: str) -> Optional[Dict[str, Any]]:
         """
         Get camera configuration by both ID and name (both required)

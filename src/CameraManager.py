@@ -32,6 +32,7 @@ class CameraFetchingWorker(QRunnable):
             if hasattr(self, 'signals') and self.signals is not None:
                 try:
                     self.signals.finished.emit(self.camera_id, result)
+                    print(f"[CameraFetchingWorker] Camera {self.camera_id} processing finished.")
                 except RuntimeError as e:
                     if "has been deleted" in str(e):
                         print(f"Signals object deleted during emission for camera {self.camera_id}")
@@ -60,10 +61,9 @@ class CameraWorker(QObject):
     error_occurred = pyqtSignal(str, str)  # camera_id, error_message
     camera_processed = pyqtSignal(str)  # camera_id - processing complete notification
     
-    def __init__(self, camera_ids: list[str], interval: int = 5000, use_gpu: bool = False):
+    def __init__(self, interval: int = 10000, use_gpu: bool = False):
         super().__init__()
         self.config_manager = CameraConfigManager()
-        self.camera_ids = camera_ids
         self.active_workers = 0  # Track active workers
         self.detection_module = DetectionModule(use_gpu=use_gpu)
         self.running = False
@@ -135,30 +135,29 @@ class CameraWorker(QObject):
         
         self.is_fetching = True
         
-        # Reload camera list from JSON configuration to pick up new cameras
+        # Get current camera list from configuration
         try:
-            config = self.config_manager.load_config()
-            current_camera_ids = [camera.get('camera_id') for camera in config.get('cameras', []) if camera.get('camera_id')]
-            self.camera_ids = current_camera_ids
-            if not self.camera_ids:
+            camera_ids = self.config_manager.get_camera_ids()
+            if not camera_ids:
                 print("No cameras found in configuration, stopping processing")
                 self.is_fetching = False
                 return
 
-            print(f"Reloaded {len(current_camera_ids)} cameras from configuration")
+            print(f"Processing {len(camera_ids)} cameras from configuration")
         except Exception as e:
-            print(f"Error reloading camera configuration: {e}")
-            # Fall back to existing camera_ids if reload fails
+            print(f"Error loading camera configuration: {e}")
+            self.is_fetching = False
+            return
         
         # Double-check we're still running after config reload
         if not self.running:
             self.is_fetching = False
             return
         
-        self.active_workers = len(self.camera_ids)
+        self.active_workers = len(camera_ids)
         
         print("Starting parallel camera processing...")
-        for camera_id in self.camera_ids:
+        for camera_id in camera_ids:
             if not self.running:
                 # If we stopped running during the loop, reduce active workers count
                 self.active_workers = 0
@@ -319,12 +318,12 @@ class CameraManager(QObject):
     camera_processed = pyqtSignal(str)  # camera_id - processing complete
     frame_ready = pyqtSignal(str, np.ndarray)  # For config page only - temporary frame display
     
-    def __init__(self, camera_ids: list[str], interval: int = 5000, use_gpu: bool = False):
+    def __init__(self, interval: int = 5000, use_gpu: bool = False):
         super().__init__()
         
         # Create worker thread
         self.worker_thread = QThread()
-        self.worker = CameraWorker(camera_ids, interval, use_gpu)
+        self.worker = CameraWorker(interval, use_gpu)
         self.worker.moveToThread(self.worker_thread)
         
         # Connect worker signals to our signals (forward them)
@@ -339,10 +338,15 @@ class CameraManager(QObject):
         # Start worker thread
         self.worker_thread.start()
         
-        self.camera_ids = camera_ids
         self.running = False
         
-        print(f"CameraManager initialized with {len(camera_ids)} cameras")
+        # Get initial camera count for logging
+        try:
+            camera_count = len(self.worker.config_manager.get_camera_ids())
+            print(f"CameraManager initialized with {camera_count} cameras")
+        except Exception as e:
+            print(f"CameraManager initialized (error getting camera count: {e})")
+        
         
     def start_monitoring(self):
         """Start the camera monitoring process"""
@@ -350,7 +354,11 @@ class CameraManager(QObject):
             self.worker.running = True
             self.running = True
             # Timer is already started when thread starts, just enable processing
-            print(f"Camera monitoring started for {len(self.camera_ids)} cameras")
+            try:
+                camera_count = len(self.worker.config_manager.get_camera_ids())
+                print(f"Camera monitoring started for {camera_count} cameras")
+            except Exception as e:
+                print(f"Camera monitoring started (error getting camera count: {e})")
     
     def stop_monitoring(self):
         """Stop the camera monitoring process"""
@@ -369,42 +377,46 @@ class CameraManager(QObject):
     def add_camera(self, camera_id: str, **kwargs):
         """Add a new camera to the configuration."""
         try:
-            # First add to config manager (saves to JSON)
+            # Add to config manager (saves to JSON)
             self.worker.config_manager.add_camera(camera_id, **kwargs)
-            
-            # Update local camera list
-            if camera_id not in self.camera_ids:
-                self.camera_ids.append(camera_id)
-            
-            # Force worker to reload camera list from JSON to ensure consistency
-            try:
-                config = self.worker.config_manager.load_config()
-                worker_camera_ids = [camera.get('camera_id') for camera in config.get('cameras', []) if camera.get('camera_id')]
-                self.worker.camera_ids = worker_camera_ids
-                print(f"Worker camera list updated: {worker_camera_ids}")
-            except Exception as e:
-                print(f"Error updating worker camera list: {e}")
-                # Fallback to manual update
-                self.worker.camera_ids = self.camera_ids.copy()
-            
-            print(f"Camera {camera_id} added successfully.")
+            print(f"Camera {camera_id} added successfully to configuration.")
         except Exception as e:
             self.error_occurred.emit(camera_id, f"Failed to add camera: {str(e)}")
     
     def remove_camera(self, camera_id: str):
-        """Remove a camera from monitoring"""
-        if camera_id in self.camera_ids:
-            self.camera_ids.remove(camera_id)
-            self.worker.camera_ids = self.camera_ids.copy()
-            print(f"Camera {camera_id} removed from monitoring.")
+        """Remove a camera from configuration"""
+        try:
+            self.worker.config_manager.remove_camera_legacy(camera_id)
+            print(f"Camera {camera_id} removed from configuration.")
+        except Exception as e:
+            self.error_occurred.emit(camera_id, f"Failed to remove camera: {str(e)}")
     
     def get_monitored_cameras(self) -> list[str]:
         """Get list of currently monitored camera IDs"""
-        return self.camera_ids.copy()
+        try:
+            return self.worker.config_manager.get_camera_ids()
+        except Exception as e:
+            print(f"Error getting monitored cameras: {e}")
+            return []
     
     def is_monitoring(self) -> bool:
         """Check if camera monitoring is active"""
         return self.running
+    
+    def trigger_update(self):
+        """Trigger an immediate update of all cameras (useful after config changes)"""
+        if self.running and not self.is_fetching:
+            print("Triggering manual camera update...")
+            self.process_all_cameras()
+        else:
+            print("Cannot trigger update: already processing or not running")
+    
+    def trigger_update(self):
+        """Trigger an immediate update of all cameras (useful after config changes)"""
+        if hasattr(self.worker, 'trigger_update'):
+            self.worker.trigger_update()
+        else:
+            print("Worker does not support manual triggers")
     
     def get_latest_frame_for_config(self, camera_id: str):
         """Get latest frame for config page - runs in separate thread to avoid UI blocking"""

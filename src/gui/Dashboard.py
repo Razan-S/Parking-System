@@ -27,9 +27,8 @@ class Dashboard(QWidget):
             
         self.selected_camera = self.camera_names[0] if self.camera_names else None
 
-        # Initialize camera manager with all camera IDs from config
-        camera_ids = [camera['camera_id'] for camera in self.config_manager.get_all_cameras()]
-        self.camera_manager = CameraManager(camera_ids, use_gpu=use_gpu)
+        # Initialize camera manager - it will get camera IDs from config automatically
+        self.camera_manager = CameraManager(use_gpu=use_gpu)
         
         # Connect camera manager signals - new simplified signals
         self.camera_manager.data_updated.connect(self.on_data_updated)
