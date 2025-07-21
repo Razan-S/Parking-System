@@ -310,8 +310,6 @@ class CameraSelector(QWidget):
         cameras = self.config_manager.get_all_cameras()
         
         print(f"[CameraSelector] Loaded {len(cameras)} cameras from config")
-        for i, cam in enumerate(cameras):
-            print(f"[CameraSelector] Camera {i}: {cam.get('camera_name', 'Unknown')} ({cam.get('camera_id', 'Unknown')})")
         
         # Store current selection to restore it
         current_selection = self.get_selected_camera()
