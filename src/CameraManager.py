@@ -140,6 +140,11 @@ class CameraWorker(QObject):
             config = self.config_manager.load_config()
             current_camera_ids = [camera.get('camera_id') for camera in config.get('cameras', []) if camera.get('camera_id')]
             self.camera_ids = current_camera_ids
+            if not self.camera_ids:
+                print("No cameras found in configuration, stopping processing")
+                self.is_fetching = False
+                return
+
             print(f"Reloaded {len(current_camera_ids)} cameras from configuration")
         except Exception as e:
             print(f"Error reloading camera configuration: {e}")

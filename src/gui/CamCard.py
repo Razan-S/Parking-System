@@ -41,9 +41,17 @@ class CamCard(QWidget):
                 background-color: #2a2a2a;
                 border-radius: 12px;
             }
+            QFrame#CamCardContainer:hover {
+                border: 3px solid #4a9eff;
+                background-color: #323232;
+            }
         """)
         
         main_layout.addWidget(container_frame)
+        
+        # Make the card look clickable
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        container_frame.setCursor(Qt.CursorShape.PointingHandCursor)
         
         # Create content layout inside the container
         layout = QVBoxLayout(container_frame)
@@ -177,6 +185,18 @@ class CamCard(QWidget):
         
         content_layout.addLayout(parking_status_layout)
         
+        # Add click hint
+        click_hint = QLabel("Click to select camera")
+        click_hint.setFont(QFont("Arial", 9))
+        click_hint.setStyleSheet("""
+            color: #4a9eff;
+            font-style: italic;
+            text-align: center;
+            margin-top: 5px;
+        """)
+        click_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        content_layout.addWidget(click_hint)
+        
         layout.addWidget(content_widget)
         
     def load_image(self):
@@ -296,7 +316,22 @@ class CamCard(QWidget):
         """Handle mouse click events"""
         if event.button() == Qt.MouseButton.LeftButton:
             self.card_clicked.emit(self.camera_id)  # Emit signal with camera ID
+            print(f"Camera card clicked: {self.camera_name} ({self.camera_id})")
         super().mousePressEvent(event)
+    
+    def enterEvent(self, event):
+        """Handle mouse enter events for hover effect"""
+        self.setStyleSheet("""
+            CamCard {
+                background-color: rgba(74, 158, 255, 0.1);
+            }
+        """)
+        super().enterEvent(event)
+    
+    def leaveEvent(self, event):
+        """Handle mouse leave events"""
+        self.setStyleSheet("")  # Reset to default
+        super().leaveEvent(event)
 
 class CamCardFrame(QWidget):
     card_clicked = pyqtSignal(str)  # Signal emitted when a camera card is clicked
@@ -387,11 +422,7 @@ class CamCardFrame(QWidget):
 
     def add_camera_cards(self):
         """Add camera cards in a scrollable area with responsive centering"""
-        if not self.cameras:
-            QMessageBox.warning(self, "No Cameras", "No camera data available to display.")
-            return
-        
-        # Create content widget for cards
+        # Create content widget for cards (always create, even with no cameras)
         content_widget = QWidget()
         content_widget.setStyleSheet("QWidget { background-color: #1a1a1a; }")
         from PyQt6.QtWidgets import QSizePolicy
@@ -399,6 +430,24 @@ class CamCardFrame(QWidget):
         content_layout = QVBoxLayout(content_widget)
         content_layout.setSpacing(20)
         content_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignJustify)
+        
+        if not self.cameras:
+            # Create a message label instead of a popup when no cameras exist
+            no_cameras_label = QLabel("No cameras configured.\nAdd cameras through the configuration menu.")
+            no_cameras_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            no_cameras_label.setStyleSheet("""
+                QLabel {
+                    color: #888888;
+                    font-size: 14px;
+                    font-style: italic;
+                    margin: 50px;
+                    line-height: 1.5;
+                }
+            """)
+            content_layout.addWidget(no_cameras_label)
+            # Set the scroll area content and return early
+            self.scroll_area.setWidget(content_widget)
+            return
         
         # Create rows for cards
         current_row_layout = None
@@ -411,6 +460,7 @@ class CamCardFrame(QWidget):
                 content_layout.addLayout(current_row_layout)
             
             # Create camera card
+            print(f"Creating camera card: {camera_data['camera_name']} ({camera_data['camera_id']})")
             card = CamCard(
                 camera_name=camera_data["camera_name"],
                 camera_id=camera_data["camera_id"],
@@ -426,6 +476,7 @@ class CamCardFrame(QWidget):
             card.card_clicked.connect(self.on_camera_card_clicked)
             
             # Add card to current row
+            print(f"Adding camera card to layout: {camera_data['camera_name']}")
             current_row_layout.addWidget(card)
         
         # Handle centering in last row
@@ -450,11 +501,12 @@ class CamCardFrame(QWidget):
         self.config_manager.load_config()
         self.cameras = self.config_manager.get_all_cameras()
         
-        # Clear existing cards
-        for i in reversed(range(self.scroll_area.widget().layout().count())):
-            item = self.scroll_area.widget().layout().itemAt(i)
-            if item.widget():
-                item.widget().setParent(None)
+        # Clear existing cards if widget exists
+        if self.scroll_area.widget() and self.scroll_area.widget().layout():
+            for i in reversed(range(self.scroll_area.widget().layout().count())):
+                item = self.scroll_area.widget().layout().itemAt(i)
+                if item.widget():
+                    item.widget().setParent(None)
         
         # Re-add camera cards
         self.add_camera_cards()

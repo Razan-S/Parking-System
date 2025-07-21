@@ -408,6 +408,10 @@ class ConfigPopup(QDialog):
         
         print(f"DEBUG: Camera saved successfully: {success}")
         
+        # Mark that changes were made and emit signal immediately
+        self.changes_made = True
+        self.configuration_changed.emit()
+        
         # Reset mode
         self.current_mode = None
         self.current_camera_id = None
@@ -452,6 +456,10 @@ class ConfigPopup(QDialog):
             raise ValueError("Failed to save camera configuration")
         
         print(f"DEBUG: Camera updated successfully")
+
+        # Mark that changes were made and emit signal immediately
+        self.changes_made = True
+        self.configuration_changed.emit()
 
         # Update the list item if camera name changed
         old_camera_name = old_config.get('camera_name', '')
