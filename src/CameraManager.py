@@ -64,15 +64,17 @@ class CameraWorker(QObject):
     def __init__(self, interval: int = 10000, use_gpu: bool = False):
         super().__init__()
         self.config_manager = CameraConfigManager()
-        self.active_workers = 0  # Track active workers
+        self.cameras = {}  # Dictionary to track camera status: {camera_id: {'is_fetching': bool}}
         self.detection_module = DetectionModule(use_gpu=use_gpu)
         self.running = False
-        self.is_fetching = False # Flag to prevent overlapping fetches
         self.latest_image_dir = os.path.join(os.path.abspath(os.curdir), "image", "latest")
         self.interval = interval
         self.timer = None  # Will be created in the worker thread
 
         self.threadpool = QThreadPool()
+        
+        # Initialize cameras dictionary from config
+        self.update_cameras_list()
         
         # Create latest image directory if it doesn't exist
         os.makedirs(self.latest_image_dir, exist_ok=True)
@@ -99,8 +101,10 @@ class CameraWorker(QObject):
         """Force stop all active workers in the thread pool"""
         print("Force stopping all active workers...")
         self.running = False
-        self.is_fetching = False
-        self.active_workers = 0
+        
+        # Reset all camera fetching status
+        for camera_id in self.cameras:
+            self.cameras[camera_id]['is_fetching'] = False
         
         if hasattr(self, 'threadpool'):
             # Clear all pending tasks immediately
@@ -124,45 +128,64 @@ class CameraWorker(QObject):
             self.timer.setInterval(interval)
             print(f"Timer interval updated to {interval}ms")
 
+    def update_cameras_list(self):
+        """Update the cameras dictionary to handle newly added cameras"""
+        try:
+            camera_ids = self.config_manager.get_camera_ids()
+            
+            # Add new cameras that don't exist in our tracking dictionary
+            for camera_id in camera_ids:
+                if camera_id not in self.cameras:
+                    self.cameras[camera_id] = {'is_fetching': False}
+                    print(f"Added new camera {camera_id} to tracking list")
+            
+            # Remove cameras that are no longer in configuration
+            cameras_to_remove = [cam_id for cam_id in self.cameras.keys() if cam_id not in camera_ids]
+            for camera_id in cameras_to_remove:
+                del self.cameras[camera_id]
+                print(f"Removed camera {camera_id} from tracking list")
+                
+            print(f"Updated camera tracking list: {len(self.cameras)} cameras")
+        except Exception as e:
+            print(f"Error updating cameras list: {e}")
+
     def process_all_cameras(self):
         """Process all cameras in the list - called by timer"""
         if not self.running:
             return
         
-        if self.is_fetching:
-            print("Already fetching, skipping this cycle")
-            return
+        # Step 1: Update cameras list to handle new cameras
+        self.update_cameras_list()
         
-        self.is_fetching = True
-        
-        # Get current camera list from configuration
+        # Step 2: Get cameras that are not currently fetching
         try:
-            camera_ids = self.config_manager.get_camera_ids()
-            if not camera_ids:
-                print("No cameras found in configuration, stopping processing")
-                self.is_fetching = False
+            available_cameras = [
+                camera_id for camera_id, status in self.cameras.items() 
+                if not status['is_fetching']
+            ]
+            
+            if not available_cameras:
+                print("All cameras are currently fetching, skipping this cycle")
                 return
 
-            print(f"Processing {len(camera_ids)} cameras from configuration")
+            print(f"Processing {len(available_cameras)} available cameras (out of {len(self.cameras)} total)")
         except Exception as e:
-            print(f"Error loading camera configuration: {e}")
-            self.is_fetching = False
+            print(f"Error checking camera availability: {e}")
             return
         
         # Double-check we're still running after config reload
         if not self.running:
-            self.is_fetching = False
             return
         
-        self.active_workers = len(camera_ids)
-        
+        # Step 3: Create workers for available cameras and mark them as fetching
         print("Starting parallel camera processing...")
-        for camera_id in camera_ids:
+        for camera_id in available_cameras:
             if not self.running:
-                # If we stopped running during the loop, reduce active workers count
-                self.active_workers = 0
-                self.is_fetching = False
                 break
+            
+            # Mark camera as fetching before starting worker
+            self.cameras[camera_id]['is_fetching'] = True
+            print(f"Started fetching for camera {camera_id}")
             
             # Create worker for each camera
             worker = CameraFetchingWorker(self.process_single_camera, camera_id)
@@ -170,20 +193,34 @@ class CameraWorker(QObject):
             self.threadpool.start(worker)
 
     def handle_worker_finished(self, camera_id: str, result: object):
-        """Handle worker finished signal"""
+        """Handle worker finished signal - update per-camera fetching status"""
+        # Update camera fetching status
+        if camera_id in self.cameras:
+            self.cameras[camera_id]['is_fetching'] = False
+            print(f"Camera {camera_id} finished fetching")
+        else:
+            print(f"Warning: Camera {camera_id} not found in tracking list")
+        
         if result is None:
             print(f"Worker for camera {camera_id} failed")
             # Don't emit error here, let process_single_camera handle it
         
-        self.active_workers -= 1
-        if self.active_workers <= 0:
-            self.is_fetching = False
-            print("All workers finished fetching")
-            
-        # If we're not running anymore, reset the counter to prevent hanging
+        # If we're not running anymore, reset all camera statuses
         if not self.running:
-            self.active_workers = 0
-            self.is_fetching = False
+            for cam_id in self.cameras:
+                self.cameras[cam_id]['is_fetching'] = False
+    
+    def get_camera_status(self, camera_id: str) -> bool:
+        """Get the fetching status of a specific camera"""
+        return self.cameras.get(camera_id, {}).get('is_fetching', False)
+    
+    def get_all_camera_statuses(self) -> dict:
+        """Get fetching status of all cameras"""
+        return {cam_id: status['is_fetching'] for cam_id, status in self.cameras.items()}
+    
+    def get_fetching_cameras_count(self) -> int:
+        """Get the count of cameras currently fetching"""
+        return sum(1 for status in self.cameras.values() if status['is_fetching'])
     
     def process_single_camera(self, camera_id: str):
         """Process a single camera - capture frame, detect, save to JSON, and notify UI"""
@@ -403,20 +440,38 @@ class CameraManager(QObject):
         """Check if camera monitoring is active"""
         return self.running
     
-    def trigger_update(self):
-        """Trigger an immediate update of all cameras (useful after config changes)"""
-        if self.running and not self.is_fetching:
-            print("Triggering manual camera update...")
-            self.process_all_cameras()
-        else:
-            print("Cannot trigger update: already processing or not running")
+    def get_camera_fetching_status(self, camera_id: str) -> bool:
+        """Check if a specific camera is currently fetching"""
+        if hasattr(self.worker, 'get_camera_status'):
+            return self.worker.get_camera_status(camera_id)
+        return False
+    
+    def get_all_camera_statuses(self) -> dict:
+        """Get fetching status of all cameras"""
+        if hasattr(self.worker, 'get_all_camera_statuses'):
+            return self.worker.get_all_camera_statuses()
+        return {}
+    
+    def get_fetching_cameras_count(self) -> int:
+        """Get the count of cameras currently fetching"""
+        if hasattr(self.worker, 'get_fetching_cameras_count'):
+            return self.worker.get_fetching_cameras_count()
+        return 0
     
     def trigger_update(self):
         """Trigger an immediate update of all cameras (useful after config changes)"""
-        if hasattr(self.worker, 'trigger_update'):
-            self.worker.trigger_update()
+        if self.running:
+            print("Triggering manual camera update...")
+            # Delegate to worker's process_all_cameras method
+            if hasattr(self.worker, 'process_all_cameras'):
+                try:
+                    self.worker.process_all_cameras()
+                except Exception as e:
+                    print(f"Error during manual trigger: {e}")
+            else:
+                print("Worker does not support manual triggers")
         else:
-            print("Worker does not support manual triggers")
+            print("Cannot trigger update: not running")
     
     def get_latest_frame_for_config(self, camera_id: str):
         """Get latest frame for config page - runs in separate thread to avoid UI blocking"""
