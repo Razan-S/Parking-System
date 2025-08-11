@@ -8,8 +8,8 @@
       "port": 8080,
       "username": "admin",
       "password": "password123",
-      "camera_status": "working",
-      "parking_status": "available",
+      "camera_status": "error",
+      "parking_status": "unknown",
       "image_path": "image/mock-cctv-1.jpg",
       "video_source": "video/cctv-test-1.mp4",
       "resolution": {
@@ -33,8 +33,8 @@
       "port": 8080,
       "username": "admin",
       "password": "password123",
-      "camera_status": "working",
-      "parking_status": "occupied",
+      "camera_status": "error",
+      "parking_status": "unknown",
       "image_path": "image/mock-cctv-2.jpg",
       "video_source": "video/cctv-test.mp4",
       "resolution": {
@@ -48,30 +48,8 @@
       },
       "detection_zones": [
         {
-          "zone_id": "ZONE_002",
-          "zone_name": "Parking Area B",
-          "polygon_points": [
-            {
-              "x": 120,
-              "y": 180
-            },
-            {
-              "x": 380,
-              "y": 180
-            },
-            {
-              "x": 420,
-              "y": 320
-            },
-            {
-              "x": 80,
-              "y": 320
-            }
-          ]
-        },
-        {
-          "zone_id": "ZONE_003",
-          "zone_name": "Parking Area C",
+          "zone_id": "zone_002",
+          "zone_name": "Detection Zone 2",
           "polygon_points": [
             {
               "x": 450,
@@ -93,7 +71,8 @@
         }
       ],
       "last_maintenance": "2024-12-10T14:15:00Z",
-      "installation_date": "2024-02-01T11:30:00Z"
+      "installation_date": "2024-02-01T11:30:00Z",
+      "last_updated": "2025-08-10T20:25:22.619175Z"
     },
     {
       "camera_id": "CAM_003",
@@ -151,8 +130,8 @@
       "port": 8080,
       "username": "admin",
       "password": "password123",
-      "camera_status": "not_working",
-      "parking_status": "available",
+      "camera_status": "error",
+      "parking_status": "unknown",
       "image_path": "image/mock-cctv-4.jpg",
       "video_source": "video/cctv-real-test-1.avi",
       "resolution": {
@@ -220,6 +199,6 @@
     "timezone": "Asia/Bangkok",
     "language": "en"
   },
-  "last_updated": "2025-06-24T19:22:46.166552Z",
+  "last_updated": "2025-08-10T22:59:27.030791Z",
   "config_version": "1.0.0"
 }
