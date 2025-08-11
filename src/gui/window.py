@@ -29,7 +29,7 @@ class Window(QMainWindow):
 
     def init_ui(self):
         self.setWindowTitle("Illegal Parking Monitoring")
-        self.setGeometry(0, 0, 300, 300)
+        self.setGeometry(50, 50, 300, 300)
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #1a1a1a;
