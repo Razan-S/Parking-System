@@ -1,5 +1,6 @@
 import sys
 import os
+import torch
 from PyQt6.QtWidgets import QApplication, QDialog
 from src.gui.window import Window
 from src.gui.GmailCard import GmailDialog
@@ -15,7 +16,7 @@ def main():
 
     # Check for GPU usage - can be set via command line arg or environment variable
     use_gpu = False
-    if "--gpu" in sys.argv or os.environ.get("USE_GPU", "").lower() in ["true", "1", "yes"]:
+    if "--gpu" in sys.argv or os.environ.get("USE_GPU", "").lower() in ["true", "1", "yes"] or torch.cuda.is_available():
         use_gpu = True
         print("GPU mode enabled")
     else:

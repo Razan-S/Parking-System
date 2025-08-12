@@ -91,8 +91,7 @@ class CameraConfigManager:
         Returns:
             List of camera configuration dictionaries
         """
-        if not self._config_data:
-            self.load_config()
+        self.load_config()
         
         return self._config_data.get('cameras', [])
     

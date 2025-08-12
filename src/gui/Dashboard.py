@@ -219,12 +219,7 @@ class Dashboard(QWidget):
         # Get fresh data
         self.camera_names = self.config_manager.get_camera_names()
         self.camera_statuses = self.config_manager.get_camera_statuses()
-          # Update camera selector with new data
-        # if hasattr(self, 'camera_selector'):
-            # Update the camera selector buttons with new statuses
-            # for i, camera_name in enumerate(self.camera_names):
-            #     if i < len(self.camera_statuses):
-            #         self.camera_selector.update_camera_status(camera_name, self.camera_statuses[i])
+    
         self.camera_selector.update_camera_statuses()
     
     def refresh_camera_cards(self):

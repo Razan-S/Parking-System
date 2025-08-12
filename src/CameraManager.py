@@ -43,7 +43,7 @@ class CameraFetchingWorker(QRunnable):
             # Only print traceback if it's not a shutdown-related error
             if "has been deleted" not in str(e):
                 traceback.print_exc()
-            
+
             # Try to emit finished signal with None result
             if hasattr(self, 'signals') and self.signals is not None:
                 try:
@@ -60,26 +60,27 @@ class CameraWorker(QObject):
     data_updated = pyqtSignal(str)  # camera_id - signals UI to refresh from JSON
     error_occurred = pyqtSignal(str, str)  # camera_id, error_message
     camera_processed = pyqtSignal(str)  # camera_id - processing complete notification
-    
+
     def __init__(self, interval: int = 10000, use_gpu: bool = False):
         super().__init__()
         self.config_manager = CameraConfigManager()
         self.cameras = {}  # Dictionary to track camera status: {camera_id: {'is_fetching': bool}}
         self.detection_module = DetectionModule(use_gpu=use_gpu)
         self.running = False
+
         self.latest_image_dir = os.path.join(os.path.abspath(os.curdir), "image", "latest")
         self.interval = interval
         self.timer = None  # Will be created in the worker thread
 
         self.threadpool = QThreadPool()
-        
+
         # Initialize cameras dictionary from config
         self.update_cameras_list()
         
         # Create latest image directory if it doesn't exist
         os.makedirs(self.latest_image_dir, exist_ok=True)
         print(f"Latest image directory: {self.latest_image_dir}")
-    
+
     def start_timer(self):
         """Initialize and start timer in the worker thread"""
         if self.timer is None:
@@ -88,7 +89,7 @@ class CameraWorker(QObject):
             self.timer.timeout.connect(self.process_all_cameras)
         self.timer.start()
         print(f"Timer started in worker thread with interval {self.interval}ms")
-    
+
     def stop_timer(self):
         """Stop and clean up timer in the worker thread"""
         if self.timer is not None:
@@ -96,7 +97,7 @@ class CameraWorker(QObject):
             self.timer.deleteLater()
             self.timer = None
         print("Timer stopped and cleaned up in worker thread")
-    
+
     def force_stop_workers(self):
         """Force stop all active workers in the thread pool"""
         print("Force stopping all active workers...")
@@ -105,12 +106,12 @@ class CameraWorker(QObject):
         # Reset all camera fetching status
         for camera_id in self.cameras:
             self.cameras[camera_id]['is_fetching'] = False
-        
+
         if hasattr(self, 'threadpool'):
             # Clear all pending tasks immediately
             self.threadpool.clear()
             print("Cleared pending thread pool tasks")
-            
+
             # Try to wait for active threads briefly
             active_count = self.threadpool.activeThreadCount()
             if active_count > 0:
@@ -120,7 +121,7 @@ class CameraWorker(QObject):
                     print(f"Force stopping {remaining} workers that didn't finish")
                 # Note: QThreadPool doesn't have a force terminate method for individual workers
                 # but setting self.running = False will cause them to exit gracefully
-    
+
     def set_interval(self, interval: int):
         """Set the timer interval"""
         self.interval = interval
@@ -153,10 +154,10 @@ class CameraWorker(QObject):
         """Process all cameras in the list - called by timer"""
         if not self.running:
             return
-        
+
         # Step 1: Update cameras list to handle new cameras
         self.update_cameras_list()
-        
+
         # Step 2: Get cameras that are not currently fetching
         try:
             available_cameras = [
@@ -176,13 +177,12 @@ class CameraWorker(QObject):
         # Double-check we're still running after config reload
         if not self.running:
             return
-        
         # Step 3: Create workers for available cameras and mark them as fetching
         print("Starting parallel camera processing...")
         for camera_id in available_cameras:
             if not self.running:
                 break
-            
+
             # Mark camera as fetching before starting worker
             self.cameras[camera_id]['is_fetching'] = True
             print(f"Started fetching for camera {camera_id}")
@@ -204,7 +204,7 @@ class CameraWorker(QObject):
         if result is None:
             print(f"Worker for camera {camera_id} failed")
             # Don't emit error here, let process_single_camera handle it
-        
+
         # If we're not running anymore, reset all camera statuses
         if not self.running:
             for cam_id in self.cameras:
@@ -221,7 +221,7 @@ class CameraWorker(QObject):
     def get_fetching_cameras_count(self) -> int:
         """Get the count of cameras currently fetching"""
         return sum(1 for status in self.cameras.values() if status['is_fetching'])
-    
+
     def process_single_camera(self, camera_id: str):
         """Process a single camera - capture frame, detect, save to JSON, and notify UI"""
         try:
@@ -229,48 +229,48 @@ class CameraWorker(QObject):
             if not self.running:
                 print(f"Camera worker shutting down, skipping processing for {camera_id}")
                 return
-            
+
             # Get camera configuration
             camera_config = self.config_manager.get_camera_by_id(camera_id)
             if not camera_config:
                 if self.running:  # Only emit if still running
                     self.error_occurred.emit(camera_id, f"Camera configuration not found for {camera_id}")
                 return
-            
+
             # Capture frame (non-blocking)
             frame = self.get_latest_frame_for_camera(camera_id)
             if frame is None:
                 if self.running:  # Only emit if still running
                     self.error_occurred.emit(camera_id, f"Failed to capture frame from {camera_id}")
                 return
-            
+
             # Check again if we're still running after frame capture (which can take time)
             if not self.running:
                 print(f"Camera worker shutting down during processing for {camera_id}")
                 return
-            
+
             # Save the frame as an image file
             image_path = self.save_frame_as_image(camera_id, frame)
             if image_path:
                 # Update the camera configuration with the new image path
                 self.config_manager.update_camera_image(camera_id, image_path)
-            
+
             # Get detection zones from configuration
             detection_zones = camera_config.get('detection_zones', [])
             parking_status = ParkingStatus.UNKNOWN.value  # Default
-            
+
             if detection_zones:
                 parking_status = self.detection_module.run(frame, detection_zones)
                 print(f"Parking status for camera {camera_id}: {parking_status}")
-            
+
             # Save parking status to JSON config
             self.config_manager.update_parking_status_legacy(camera_id, parking_status)
-            
+
             # Update camera status to working (since we successfully processed)
             self.config_manager.update_camera_status_legacy(camera_id, "working")
-            
+
             print(f"Camera {camera_id}: Processing complete, status = {parking_status}")
-            
+
             # Only emit signals if we're still running and object exists
             if self.running:
                 try:
@@ -282,14 +282,14 @@ class CameraWorker(QObject):
                         print(f"Worker object deleted during signal emission for {camera_id}")
                     else:
                         raise
-                
+
         except Exception as e:
             # Only handle errors if we're still running
             if self.running:
                 error_msg = f"Error processing camera {camera_id}: {str(e)}"
                 print(error_msg)
                 print(traceback.format_exc())
-                
+
                 # Update camera status to error in JSON
                 try:
                     self.config_manager.update_camera_status_legacy(camera_id, CameraStatus.ERROR.value)
@@ -303,7 +303,7 @@ class CameraWorker(QObject):
                                 print(f"Signal error: {signal_error}")
                 except Exception as config_error:
                     print(f"Failed to update camera status to error: {config_error}")
-                    
+
                 # Try to emit error signal if object still exists
                 try:
                     if self.running:
@@ -315,25 +315,25 @@ class CameraWorker(QObject):
                         print(f"Error signal emission failed: {signal_error}")
             else:
                 print(f"Camera worker shutting down, ignoring error for {camera_id}: {str(e)}")
-    
+
     def save_frame_as_image(self, camera_id: str, frame: np.ndarray) -> str:
         """Save a frame as an image file and return the path"""
         try:
             if frame is None:
                 return None
-                
+
             # Create a unique filename using camera_id
             filename = f"{camera_id}.jpg"
             filepath = os.path.join(self.latest_image_dir, filename)
-            
+
             # Save the frame as an image
             cv.imwrite(filepath, frame)
             print(f"Saved frame from camera {camera_id} to {filepath}")
-            
+
             # Return the relative path from the project root
             rel_path = os.path.join("image", "latest", filename)
             return rel_path
-            
+
         except Exception as e:
             print(f"Error saving frame as image for camera {camera_id}: {str(e)}")
             return None
@@ -354,37 +354,37 @@ class CameraManager(QObject):
     error_occurred = pyqtSignal(str, str)  # camera_id, error_message
     camera_processed = pyqtSignal(str)  # camera_id - processing complete
     frame_ready = pyqtSignal(str, np.ndarray)  # For config page only - temporary frame display
-    
+
     def __init__(self, interval: int = 5000, use_gpu: bool = False):
         super().__init__()
-        
+
         # Create worker thread
         self.worker_thread = QThread()
         self.worker = CameraWorker(interval, use_gpu)
         self.worker.moveToThread(self.worker_thread)
-        
+
         # Connect worker signals to our signals (forward them)
         self.worker.data_updated.connect(self.data_updated)
         self.worker.error_occurred.connect(self.error_occurred)
         self.worker.camera_processed.connect(self.camera_processed)
-        
+
         # Connect thread lifecycle signals properly
         self.worker_thread.started.connect(self.worker.start_timer)
         self.worker_thread.finished.connect(self.worker.stop_timer)
-        
+
         # Start worker thread
         self.worker_thread.start()
-        
+
         self.running = False
-        
+
         # Get initial camera count for logging
         try:
             camera_count = len(self.worker.config_manager.get_camera_ids())
             print(f"CameraManager initialized with {camera_count} cameras")
         except Exception as e:
             print(f"CameraManager initialized (error getting camera count: {e})")
-        
-        
+
+
     def start_monitoring(self):
         """Start the camera monitoring process"""
         if not self.running:
@@ -396,7 +396,7 @@ class CameraManager(QObject):
                 print(f"Camera monitoring started for {camera_count} cameras")
             except Exception as e:
                 print(f"Camera monitoring started (error getting camera count: {e})")
-    
+
     def stop_monitoring(self):
         """Stop the camera monitoring process"""
         if self.running:
@@ -404,7 +404,7 @@ class CameraManager(QObject):
             self.running = False
             # Don't stop timer, just disable processing
             print("Camera monitoring stopped")
-    
+
     def set_interval(self, interval: int):
         """Set the timer interval for updates."""
         if hasattr(self.worker, 'set_interval'):
@@ -419,7 +419,7 @@ class CameraManager(QObject):
             print(f"Camera {camera_id} added successfully to configuration.")
         except Exception as e:
             self.error_occurred.emit(camera_id, f"Failed to add camera: {str(e)}")
-    
+
     def remove_camera(self, camera_id: str):
         """Remove a camera from configuration"""
         try:
@@ -427,7 +427,7 @@ class CameraManager(QObject):
             print(f"Camera {camera_id} removed from configuration.")
         except Exception as e:
             self.error_occurred.emit(camera_id, f"Failed to remove camera: {str(e)}")
-    
+
     def get_monitored_cameras(self) -> list[str]:
         """Get list of currently monitored camera IDs"""
         try:
@@ -435,11 +435,11 @@ class CameraManager(QObject):
         except Exception as e:
             print(f"Error getting monitored cameras: {e}")
             return []
-    
+
     def is_monitoring(self) -> bool:
         """Check if camera monitoring is active"""
         return self.running
-    
+
     def get_camera_fetching_status(self, camera_id: str) -> bool:
         """Check if a specific camera is currently fetching"""
         if hasattr(self.worker, 'get_camera_status'):
@@ -457,7 +457,7 @@ class CameraManager(QObject):
         if hasattr(self.worker, 'get_fetching_cameras_count'):
             return self.worker.get_fetching_cameras_count()
         return 0
-    
+
     def trigger_update(self):
         """Trigger an immediate update of all cameras (useful after config changes)"""
         if self.running:
@@ -472,14 +472,14 @@ class CameraManager(QObject):
                 print("Worker does not support manual triggers")
         else:
             print("Cannot trigger update: not running")
-    
+
     def get_latest_frame_for_config(self, camera_id: str):
         """Get latest frame for config page - runs in separate thread to avoid UI blocking"""
         import weakref
-        
+
         # Create weak reference to avoid object deletion issues
         weak_self = weakref.ref(self)
-        
+
         def capture_and_emit():
             try:
                 # Check if the object still exists and is still running
@@ -487,7 +487,7 @@ class CameraManager(QObject):
                 if strong_self is None or not strong_self.running:
                     print("CameraManager object deleted or stopped, skipping frame capture")
                     return
-                
+
                 frame = strong_self.worker.get_latest_frame_for_camera(camera_id)
                 if frame is not None:
                     # Check again before emitting
@@ -516,7 +516,7 @@ class CameraManager(QObject):
                     except RuntimeError as signal_error:
                         if "has been deleted" in str(signal_error):
                             print("CameraManager deleted during error signal emission")
-        
+
         # Only start the thread if we're still running
         if self.running:
             # Run in a separate thread to avoid blocking UI
@@ -524,29 +524,29 @@ class CameraManager(QObject):
                 def __init__(self, capture_func):
                     super().__init__()
                     self.capture_func = capture_func
-                
+
                 def run(self):
                     self.capture_func()
-            
+
             runnable = FrameCaptureRunnable(capture_and_emit)
             QThreadPool.globalInstance().start(runnable)
         else:
             print(f"CameraManager not running, skipping frame capture for {camera_id}")
-        
+
     def shutdown(self):
         """Properly shutdown the camera manager and clean up resources"""
         print("Shutting down CameraManager...")
         self.stop_monitoring()
-        
+
         # Force stop all active workers first
         if hasattr(self, 'worker'):
             self.worker.force_stop_workers()
-        
+
         # Stop the thread pool workers with shorter timeout
         if hasattr(self, 'worker') and hasattr(self.worker, 'threadpool'):
             print("Stopping thread pool workers...")
             self.worker.threadpool.clear()  # Clear pending tasks
-            
+
             # Check if there are any active threads first
             active_count = self.worker.threadpool.activeThreadCount()
             if active_count > 0:
@@ -559,21 +559,21 @@ class CameraManager(QObject):
                     print("All thread pool workers finished")
             else:
                 print("No active thread pool workers to wait for")
-        
+
         # Stop the worker thread with shorter timeout
         if hasattr(self, 'worker_thread') and self.worker_thread.isRunning():
             print("Stopping main worker thread...")
             # Request thread to quit
             self.worker_thread.quit()
-            
+
             # Wait only 1.5 seconds for graceful shutdown
             if not self.worker_thread.wait(1500):
                 print("Force terminating worker thread...")
                 self.worker_thread.terminate()
                 self.worker_thread.wait(500)  # Only wait 0.5 seconds for termination
-        
+
         print("CameraManager shutdown complete")
-    
+
     def __del__(self):
         """Clean up resources when the object is destroyed"""
         self.shutdown()
