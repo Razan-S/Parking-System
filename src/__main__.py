@@ -14,13 +14,27 @@ def main():
     app.setOrganizationName("Parking System")
     app.setStyle('Fusion')
 
-    # Check for GPU usage - can be set via command line arg or environment variable
+    # Check for GPU usage with robust error handling
     use_gpu = False
-    if "--gpu" in sys.argv or os.environ.get("USE_GPU", "").lower() in ["true", "1", "yes"] or torch.cuda.is_available():
-        use_gpu = True
-        print("GPU mode enabled")
-    else:
-        print("CPU mode enabled (use --gpu flag or set USE_GPU=true for GPU mode)")
+    gpu_reason = "CPU mode (default)"
+    
+    try:
+        if "--gpu" in sys.argv:
+            if torch.cuda.is_available():
+                use_gpu = True
+                gpu_reason = f"GPU mode (--gpu flag, CUDA available: {torch.cuda.get_device_name(0)})"
+            else:
+                gpu_reason = "CPU mode (--gpu flag provided but CUDA not available)"
+        elif torch.cuda.is_available():
+            use_gpu = True
+            gpu_reason = f"GPU mode (CUDA auto-detected: {torch.cuda.get_device_name(0)})"
+        else:
+            gpu_reason = "CPU mode (CUDA not available)"
+    except Exception as e:
+        use_gpu = False
+        gpu_reason = f"CPU mode (GPU detection failed: {str(e)})"
+    
+    print(gpu_reason)
 
     gmail_dialog = GmailDialog()
     result = gmail_dialog.exec()
