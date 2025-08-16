@@ -202,6 +202,10 @@ class CamCard(QWidget):
     def load_image(self):
         """Load camera image or show placeholder"""
         # First try to load from saved image path
+        if self.camera_status == CameraStatus.ERROR.value:
+            self.show_error()
+            return
+
         if self.image_path and os.path.exists(self.image_path):
             try:
                 pixmap = QPixmap(self.image_path)
@@ -235,7 +239,20 @@ class CamCard(QWidget):
                 font-size: 24px;
             }
         """)
-    
+
+    def show_error(self):
+        self.image_label.setText("📷\nCamera Error")
+        self.image_label.setStyleSheet("""
+            QLabel {
+                background-color: #2a2a2a;
+                border-top-left-radius: 9px;
+                border-top-right-radius: 9px;
+                border: none;
+                color: #ffffff;
+                font-size: 24px;
+            }
+        """)
+
     def get_status_circle_style(self, status):
         """Get CSS style for camera status circle"""
         colors = {
