@@ -9,12 +9,8 @@ def get_mac_address():
     mac = uuid.getnode()
     return ':'.join(['{:02x}'.format((mac >> ele) & 0xff) for ele in range(40, -1, -8)])
 
-def get_cpu_info():
-    try:
-        info = cpuinfo.get_cpu_info()
-        return info.get('brand_raw', platform.processor())
-    except:
-        return platform.processor()
+def get_cpu_brand():
+    return platform.processor()
     
 def get_cpu_serial():
     try:
@@ -72,7 +68,7 @@ def ip_to_location(ip):
 def get_info():
     mac = get_mac_address()
     cpu_serial = get_cpu_serial()
-    cpu_info = get_cpu_info()
+    cpu_info = get_cpu_brand()
     ip = get_public_ip()
     location = ip_to_location(ip) if ip else ''
 

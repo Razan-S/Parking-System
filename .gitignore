@@ -5,3 +5,5 @@ video/
 image/
 src\client.py
 src\api.py
+build/
+dist/

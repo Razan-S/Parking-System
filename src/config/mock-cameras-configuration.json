@@ -1,0 +1,14 @@
+{
+  "cameras": [],
+  "system_settings": {
+    "default_detection_confidence": 0.7,
+    "alert_cooldown_minutes": 5,
+    "auto_cleanup_days": 30,
+    "backup_enabled": true,
+    "backup_schedule": "daily",
+    "timezone": "Asia/Bangkok",
+    "language": "en"
+  },
+  "last_updated": "2025-08-12T01:07:23.866523Z",
+  "config_version": "1.0.0"
+}

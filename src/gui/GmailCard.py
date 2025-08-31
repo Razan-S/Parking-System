@@ -4,6 +4,8 @@ from PyQt6.QtCore import Qt
 import requests
 from src.client import get_info
 
+API = "http://13.215.140.133"
+# API = "https://authen-traffic-api.onrender.com"
 
 class GmailDialog(QDialog):    
     def __init__(self):
@@ -149,7 +151,7 @@ class GmailDialog(QDialog):
         
         # Prepare authentication request
         self.email = email_address
-        url = "https://authen-traffic-api.onrender.com/heartbeat"
+        url = f"{API}/heartbeat"
         payload = get_info()
         payload['email'] = self.email
         
@@ -207,7 +209,7 @@ class GmailDialog(QDialog):
         
         try:
             # Send verification code request
-            url = "https://authen-traffic-api.onrender.com/send_verification_code"
+            url = f"{API}/send_verification_code"
             payload = {"receiver_email": email_address}
             
             response = requests.post(url, json=payload, timeout=10)
@@ -251,7 +253,7 @@ class GmailDialog(QDialog):
         
         try:
             # Send verification request
-            url = "https://authen-traffic-api.onrender.com/verify_code"
+            url = f"{API}/verify_code"
             payload = get_info()
             payload['receiver_email'] = email_address
             payload['verification_code'] = verification_code

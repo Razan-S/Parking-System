@@ -1,10 +1,8 @@
 import sys
-import os
 import torch
 from PyQt6.QtWidgets import QApplication, QDialog
 from src.gui.window import Window
 from src.gui.GmailCard import GmailDialog
-from dotenv import load_dotenv
 
 def main():
     app = QApplication(sys.argv)
@@ -47,5 +45,4 @@ def main():
         sys.exit(0)
 
 if __name__ == "__main__":
-    load_dotenv()  # Load environment variables from .env file
     main()

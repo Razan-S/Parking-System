@@ -4,6 +4,15 @@ from shapely.geometry import Polygon, box
 from src.enums import ParkingStatus
 import torch
 import os
+import sys
+
+def resource_path(relative_path: str) -> str:
+    """
+    Get absolute path to resource, works for development and PyInstaller.
+    """
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 class DetectionModule:
     def __init__(self, use_gpu: bool = False):
@@ -13,6 +22,8 @@ class DetectionModule:
         Args:
             use_gpu (bool): If True, attempt to load on GPU (CUDA). If CUDA isn’t
                             available or use_gpu=False, falls back to CPU.
+            allow_trt (bool): If True, try TensorRT (.engine). Disabled by default
+                              for PyInstaller builds to avoid DLL errors.
         """
         # Decide which device to use
         if use_gpu and torch.cuda.is_available():
@@ -22,27 +33,25 @@ class DetectionModule:
             self.device = "cpu"
             print("Using CPU for inference.")
 
-        # List of (model_path, description) in preferred load order
-        # For CPU mode, prioritize PyTorch model as it has fewer compatibility issues
+        # Model candidates
         if self.device == "cpu":
             model_paths = [
-                "yolo12n.pt",      # PyTorch (most compatible)
-                "yolo12n.onnx"     # ONNX (CPU compatible but might have issues)
+                "yolo12n.pt",      # PyTorch (safe for CPU)
+                "yolo12n.onnx"     # ONNX (CPU compatible)
             ]
         else:
-            model_paths = [
-                "yolo12n.engine",  # TensorRT (GPU only)
-                "yolo12n.pt",      # PyTorch
-                "yolo12n.onnx"     # ONNX
+            model_paths = []
+            model_paths += [
+                "yolo12n.pt",      # PyTorch GPU
+                "yolo12n.onnx"     # ONNX GPU
             ]
 
         self.model = None
-        # Try loading each model in turn
         for path in model_paths:
+            path = resource_path(path)
             if os.path.exists(path):
                 try:
                     print(f"Loading model from '{path}'...")
-                    # Load model without device parameter
                     self.model = YOLO(path, task="detect", verbose=False)
                     print(f"Successfully loaded '{path}'.")
                     break
@@ -51,13 +60,12 @@ class DetectionModule:
 
         if self.model is None:
             raise RuntimeError(
-                "No valid YOLO model file found or all loads failed. "
-                "Make sure you have one of: yolo12n.engine, yolo12n.onnx, or yolo12n.pt"
+                "No valid YOLO model file found. "
+                "Expected one of: yolo12n.pt, yolo12n.onnx, (yolo12n.engine if TRT enabled)."
             )
 
         # Warm up the model with a dummy image on the desired device
         dummy = np.zeros((640, 640, 3), dtype=np.uint8)
-        # Run inference with device specification in the predict method
         _ = self.model.predict(dummy, device=self.device, verbose=False)
         print(f"Model warm-up complete on device '{self.device}'.")
 
