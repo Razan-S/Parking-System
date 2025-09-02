@@ -5,6 +5,9 @@ from src.enums import ParkingStatus
 import torch
 import os
 import sys
+import base64
+
+from src.utils import *
 
 def resource_path(relative_path: str) -> str:
     """
@@ -107,6 +110,13 @@ class DetectionModule:
                 det_poly = box(x1, y1, x2, y2)
                 for zone_id, zone_poly in zones:
                     if det_poly.intersects(zone_poly):
+                        print(f"Vehicle detected in zone {zone_id}")
+                        response = notify_telegram(base64_str=self.frame_to_base64(frame), caption='Vehicle Detected')
+                        if response:
+                            print(f"Notification sent successfully: {response}")
+                        else:
+                            print("Failed to send notification.")
+
                         return ParkingStatus.OCCUPIED.value
 
             # No intersections → available
@@ -115,3 +125,16 @@ class DetectionModule:
         except Exception as e:
             print(f"Error during detection: {e}")
             return ParkingStatus.UNKNOWN.value
+        
+    def frame_to_base64(self, frame):
+        if frame is not None:
+            success, encoded_image = cv.imencode('.jpg', frame)
+            if success:
+                base64_string = base64.b64encode(encoded_image.tobytes()).decode('utf-8')
+                return base64_string
+            else:
+                print("Failed to encode image to base64.")
+                return None
+        else:
+            print("No frame to encode.")
+            return None

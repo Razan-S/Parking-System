@@ -38,7 +38,7 @@ class CameraConfigManager:
         if config_file_path is None:
             # Default path relative to this file
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            config_file_path = os.path.join(current_dir, "mock-cameras-configuration.json")
+            config_file_path = os.path.join(current_dir, "cameras-configuration.json")
         
         self.config_file_path = config_file_path
         self._config_data = None
