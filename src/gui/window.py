@@ -3,11 +3,18 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QStackedLayout, QVBoxLayout, Q
 from src.gui.segmentor import RoadSegmenterGUI
 from src.gui.Dashboard import Dashboard
 from src.config.utils import CameraConfigManager
-import os
+from src import globals
+from src.client import get_info
+import requests
+
+API = "http://13.215.140.133"
 
 class Window(QMainWindow):
     def __init__(self, use_gpu=False):
         super().__init__()
+
+        #user email from login dialog
+        self.email = globals.USER_EMAIL
         
         # Store GPU preference
         self.use_gpu = use_gpu
@@ -26,6 +33,26 @@ class Window(QMainWindow):
             self.camera_statuses = self.config_manager.get_camera_statuses()
 
         self.init_ui()
+
+        self.heartbeat_timer = QTimer(self)
+        self.heartbeat_timer.timeout.connect(self.check_heartbeat)
+        self.heartbeat_timer.start(60000 * 5) # every 5 minutes
+
+        self.check_heartbeat()
+
+    def check_heartbeat(self):
+        url = f"{API}/heartbeat"
+        payload = get_info()
+        payload['email'] = self.email
+
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            data = response.json()
+            if data.get("banned", False):
+                QMessageBox.critical(self, "Access Denied", "Your account has been banned. The application will now close.")
+                QTimer.singleShot(100, QApplication.instance().quit)
+        except Exception as e:
+            print(f"Heartbeat check failed: {e}")
 
     def init_ui(self):
         self.setWindowTitle("Illegal Parking Monitoring")

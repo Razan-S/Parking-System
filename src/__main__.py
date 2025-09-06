@@ -3,6 +3,8 @@ import torch
 from PyQt6.QtWidgets import QApplication, QDialog
 from src.gui.window import Window
 from src.gui.GmailCard import GmailDialog
+from src import globals
+
 
 def main():
     app = QApplication(sys.argv)
@@ -38,6 +40,8 @@ def main():
     result = gmail_dialog.exec()
     
     if result == QDialog.DialogCode.Accepted:
+        globals.USER_EMAIL = gmail_dialog.email
+        print(f"Logged in as: {globals.USER_EMAIL}")
         window = Window(use_gpu=use_gpu)
         window.show()
         sys.exit(app.exec())
