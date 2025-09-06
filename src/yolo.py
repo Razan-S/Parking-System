@@ -5,6 +5,10 @@ from src.enums import ParkingStatus
 import torch
 import os
 import sys
+import base64
+import cv2 as cv
+
+from src.utils import *
 
 def resource_path(relative_path: str) -> str:
     """
@@ -102,16 +106,68 @@ class DetectionModule:
                     continue
                 zones.append((region['zone_id'], poly))
 
+            # Track which zones are occupied
+            occupied_zones = set()
+            frame_drawed = frame.copy()
+
             # Check each detected box against each zone polygon
             for x1, y1, x2, y2 in boxes:
                 det_poly = box(x1, y1, x2, y2)
+                
                 for zone_id, zone_poly in zones:
-                    if det_poly.intersects(zone_poly):
+                    intersection_area = det_poly.intersection(zone_poly).area
+                    object_area = det_poly.area
+                    IOO = intersection_area / object_area if object_area > 0 else 0
+
+                    frame_drawed = self.draw_detections(frame_drawed, det_poly, zone_poly, IOO)
+
+                    if IOO >= 0.2:
+                        print(f"Vehicle detected in zone {zone_id} with IOO: {IOO:.2f}")
+                        
+                        response = notify_telegram(base64_str=self.frame_to_base64(frame_drawed), caption=f'Vehicle Detected in Zone {zone_id}')
+                        if response:
+                            print(f"Notification sent successfully: {response}")
+                        else:
+                            print(f"Failed to send notification.: {response}")
+                        print('Return')
                         return ParkingStatus.OCCUPIED.value
 
-            # No intersections → available
             return ParkingStatus.AVAILABLE.value
 
         except Exception as e:
             print(f"Error during detection: {e}")
             return ParkingStatus.UNKNOWN.value
+        
+    def frame_to_base64(self, frame):
+        if frame is not None:
+            success, encoded_image = cv.imencode('.jpg', frame)
+            if success:
+                base64_string = base64.b64encode(encoded_image.tobytes()).decode('utf-8')
+                return base64_string
+            else:
+                print("Failed to encode image to base64.")
+                return None
+        else:
+            print("No frame to encode.")
+            return None
+
+    def draw_detections(self, frame, detection_box, zone_poly, value):
+        frame_copy = frame.copy() if frame is not None else None
+
+        # Draw the zone polygon
+        if zone_poly is not None and frame_copy is not None:
+            # Get the exterior coordinates of the polygon
+            pts = np.array(zone_poly.exterior.coords, np.int32)
+            pts = pts.reshape((-1, 1, 2))
+            cv.polylines(frame_copy, [pts], isClosed=True, color=(255, 0, 0), thickness=2)
+
+        # Draw the detection box
+        if detection_box is not None and frame_copy is not None:
+            # Get bounding box coordinates from Shapely box
+            minx, miny, maxx, maxy = detection_box.bounds
+            x1, y1, x2, y2 = int(minx), int(miny), int(maxx), int(maxy)
+            cv.rectangle(frame_copy, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv.putText(frame_copy, "Vehicle", (x1, y1 - 5), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            cv.putText(frame_copy, f"IOO: {value:.2f}", (x1, y2 + 15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        return frame_copy if frame_copy is not None else frame
