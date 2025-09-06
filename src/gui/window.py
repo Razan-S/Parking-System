@@ -6,6 +6,7 @@ from src.config.utils import CameraConfigManager
 from src import globals
 from src.client import get_info
 import requests
+import sys
 
 API = "http://13.215.140.133"
 
@@ -18,6 +19,9 @@ class Window(QMainWindow):
         
         # Store GPU preference
         self.use_gpu = use_gpu
+        
+        # Flag to track if user is banned (bypass close confirmation)
+        self.is_banned = False
 
         # Initialize camera config manager
         self.config_manager = CameraConfigManager()
@@ -36,7 +40,7 @@ class Window(QMainWindow):
 
         self.heartbeat_timer = QTimer(self)
         self.heartbeat_timer.timeout.connect(self.check_heartbeat)
-        self.heartbeat_timer.start(60000 * 5) # every 5 minutes
+        self.heartbeat_timer.start(60000) # every 1 minutes
 
         self.check_heartbeat()
 
@@ -49,10 +53,27 @@ class Window(QMainWindow):
             response = requests.post(url, json=payload, timeout=10)
             data = response.json()
             if data.get("banned", False):
-                QMessageBox.critical(self, "Access Denied", "Your account has been banned. The application will now close.")
-                QTimer.singleShot(100, QApplication.instance().quit)
+                self.is_banned = True
+                self.force_quit()
         except Exception as e:
             print(f"Heartbeat check failed: {e}")
+
+    def force_quit(self):
+        """Force quit the application when user is banned"""
+        print("User is banned. Forcing application shutdown...")
+        
+        # Stop the heartbeat timer
+        if hasattr(self, 'heartbeat_timer'):
+            self.heartbeat_timer.stop()
+        
+        # Perform immediate cleanup
+        try:
+            self.shutdown_threads()
+        except Exception as e:
+            print(f"Error during forced shutdown: {e}")
+        
+        # Force quit without any dialogs
+        sys.exit(1)
 
     def init_ui(self):
         self.setWindowTitle("Illegal Parking Monitoring")
@@ -142,6 +163,12 @@ class Window(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event"""
+        # If user is banned, accept close immediately without confirmation
+        if self.is_banned:
+            event.accept()
+            return
+        
+        # Normal close confirmation dialog
         reply = QMessageBox.question(self, 'Exit', 'Are you sure you want to exit?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                      QMessageBox.StandardButton.No)
@@ -213,5 +240,3 @@ class Window(QMainWindow):
             print(f"Error during thread pool cleanup: {e}")
         
         print("Thread shutdown complete")
-
-            
