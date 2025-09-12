@@ -111,7 +111,10 @@ class DetectionModule:
                     # --- Version 4 Rule ---
                     bottom_inside = zone_poly.contains(Point(bottom_center))
 
-                    if (IOO >= 0.2 or bottom_inside):
+                    if (IOO >= 0.2):
+                        if not bottom_inside:
+                            continue
+
                         print(f"Vehicle detected in zone {zone_id} with IOO: {IOO:.2f}")
                         frame_drawed = self.draw_detections(frame_drawed, det_poly, zone_poly, IOO)
                         
@@ -120,7 +123,6 @@ class DetectionModule:
                             print(f"Notification sent successfully: {response}")
                         else:
                             print(f"Failed to send notification.: {response}")
-                        print('Return')
                         return ParkingStatus.OCCUPIED.value
             return ParkingStatus.AVAILABLE.value
 
