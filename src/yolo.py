@@ -1,6 +1,6 @@
 from ultralytics import YOLO
 import numpy as np
-from shapely.geometry import Polygon, box
+from shapely.geometry import Polygon, box, Point
 from src.enums import ParkingStatus
 import torch
 import os
@@ -51,6 +51,8 @@ class DetectionModule:
             ]
 
         self.model = None
+        self.prev_detections = {}
+
         for path in model_paths:
             path = resource_path(path)
             if os.path.exists(path):
@@ -74,20 +76,6 @@ class DetectionModule:
         print(f"Model warm-up complete on device '{self.device}'.")
 
     def run(self, frame: np.ndarray, coordinates: list) -> str:
-        """
-        Detect objects in the frame and determine parking status.
-
-        Args:
-            frame (np.ndarray): BGR or RGB image array.
-            coordinates (list of dict): Each dict should have:
-                - "zone_id": unique identifier for the region
-                - "polygon_points": list of {"x": x_i, "y": y_i} points
-
-        Returns:
-            str: One of ParkingStatus.AVAILABLE.value,
-                 ParkingStatus.OCCUPIED.value, or
-                 ParkingStatus.UNKNOWN.value
-        """
         if self.model is None:
             return ParkingStatus.UNKNOWN.value
 
@@ -106,23 +94,26 @@ class DetectionModule:
                     continue
                 zones.append((region['zone_id'], poly))
 
-            # Track which zones are occupied
-            occupied_zones = set()
             frame_drawed = frame.copy()
 
             # Check each detected box against each zone polygon
             for x1, y1, x2, y2 in boxes:
                 det_poly = box(x1, y1, x2, y2)
+
+                # bottom-center point of the vehicle (road contact)
+                bottom_center = ((x1 + x2) / 2, y2)
                 
                 for zone_id, zone_poly in zones:
                     intersection_area = det_poly.intersection(zone_poly).area
                     object_area = det_poly.area
                     IOO = intersection_area / object_area if object_area > 0 else 0
+                    
+                    # --- Version 4 Rule ---
+                    bottom_inside = zone_poly.contains(Point(bottom_center))
 
-                    frame_drawed = self.draw_detections(frame_drawed, det_poly, zone_poly, IOO)
-
-                    if IOO >= 0.2:
+                    if (IOO >= 0.2 or bottom_inside):
                         print(f"Vehicle detected in zone {zone_id} with IOO: {IOO:.2f}")
+                        frame_drawed = self.draw_detections(frame_drawed, det_poly, zone_poly, IOO)
                         
                         response = notify_telegram(base64_str=self.frame_to_base64(frame_drawed), caption=f'Vehicle Detected in Zone {zone_id}')
                         if response:
@@ -131,7 +122,6 @@ class DetectionModule:
                             print(f"Failed to send notification.: {response}")
                         print('Return')
                         return ParkingStatus.OCCUPIED.value
-
             return ParkingStatus.AVAILABLE.value
 
         except Exception as e:
