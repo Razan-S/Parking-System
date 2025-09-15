@@ -6,15 +6,10 @@ import os
 import base64
 import requests
 
-def encode_image_to_base64(file_path: str) -> str:
-    """Read an image file and return Base64 encoded string"""
-    with open(file_path, "rb") as f:
-        image_bytes = f.read()
-    return base64.b64encode(image_bytes).decode("utf-8")
-
-def notify_telegram(base64_str: str, caption: str) -> bool:
+def notify_telegram(base64_str: str, caption: str, email: str) -> bool:
     url = "http://13.215.140.133/notify"
     payload = {
+        "email": str(email).strip(),
         "image_base64": base64_str,
         "caption": caption
     }

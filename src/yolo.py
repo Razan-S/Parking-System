@@ -7,8 +7,12 @@ import os
 import sys
 import base64
 import cv2 as cv
-
+from src import globals
+from datetime import datetime
+import pytz 
 from src.utils import *
+
+tz = pytz.timezone("Asia/Bangkok")
 
 def resource_path(relative_path: str) -> str:
     """
@@ -29,6 +33,11 @@ class DetectionModule:
             allow_trt (bool): If True, try TensorRT (.engine). Disabled by default
                               for PyInstaller builds to avoid DLL errors.
         """
+        self.email = globals.USER_EMAIL
+        print(f"DetectionModule initialized with email: {self.email}")
+
+        self.zone_history = {}
+
         # Decide which device to use
         if use_gpu and torch.cuda.is_available():
             self.device = "cuda:0"  # first CUDA GPU
@@ -75,6 +84,13 @@ class DetectionModule:
         _ = self.model.predict(dummy, device=self.device, verbose=False)
         print(f"Model warm-up complete on device '{self.device}'.")
 
+    def calculate_density(self, road: np.ndarray, road_car: np.ndarray) -> float:
+        hist_road = cv.calcHist([road], [0], None, [256], [1, 255]).flatten()
+        hist_road_car = cv.calcHist([road_car], [0], None, [256], [1, 255]).flatten()
+        hist_diff = np.maximum(hist_road - hist_road_car, 0)
+        density = np.sum(hist_diff) / np.sum(hist_road)
+        return float(f"{density:.2f}")
+
     def run(self, frame: np.ndarray, coordinates: list) -> str:
         if self.model is None:
             return ParkingStatus.UNKNOWN.value
@@ -96,34 +112,69 @@ class DetectionModule:
 
             frame_drawed = frame.copy()
 
-            # Check each detected box against each zone polygon
             for x1, y1, x2, y2 in boxes:
                 det_poly = box(x1, y1, x2, y2)
-
-                # bottom-center point of the vehicle (road contact)
                 bottom_center = ((x1 + x2) / 2, y2)
-                
                 for zone_id, zone_poly in zones:
                     intersection_area = det_poly.intersection(zone_poly).area
                     object_area = det_poly.area
                     IOO = intersection_area / object_area if object_area > 0 else 0
-                    
-                    # --- Version 4 Rule ---
                     bottom_inside = zone_poly.contains(Point(bottom_center))
 
-                    if (IOO >= 0.2):
-                        if not bottom_inside:
-                            continue
+                    if IOO >= 0.2 and bottom_inside:
+                        # Crop the zone area from the frame
+                        mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+                        pts = np.array(zone_poly.exterior.coords, np.int32)
+                        cv.fillPoly(mask, [pts], 255)
+                        zone_img = cv.bitwise_and(frame, frame, mask=mask)
 
-                        print(f"Vehicle detected in zone {zone_id} with IOO: {IOO:.2f}")
-                        frame_drawed = self.draw_detections(frame_drawed, det_poly, zone_poly, IOO)
-                        
-                        response = notify_telegram(base64_str=self.frame_to_base64(frame_drawed), caption=f'Vehicle Detected in Zone {zone_id}')
-                        if response:
-                            print(f"Notification sent successfully: {response}")
+                         # Initialize or update zone history
+                        hist = self.zone_history.setdefault(zone_id, {"frames": [], "count": 0})
+
+                        if hist["count"] == 0:
+                            hist["frames"] = [zone_img]
+                            hist["count"] = 1
+                            # Compare histograms
+                            
+                        elif hist["count"] < 3:
+                            hist["frames"].append(zone_img)
+                            hist["count"] += 1
+                            if hist["count"] == 3:
+                                # Compare histograms
+                                density1 = self.calculate_density(hist["frames"][0], hist["frames"][1])
+                                density2 = self.calculate_density(hist["frames"][0], hist["frames"][2])
+                                avg_density = (density1 + density2) / 2
+                                threshold = 0.15  # Set your threshold here
+
+                                if avg_density < threshold:
+                                    # Car is stationary, send notification
+                                    frame_drawed = self.draw_detections(frame, det_poly, zone_poly, IOO)
+                                    now = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+                                    caption = (
+                                        f"Vehicle Detected in {zone_id}\n"
+                                        f"Time: {now}\n"
+                                        f"Parking Status: OCCUPIED\n"
+                                        f"Density: {avg_density:.2f}\n"
+                                        f"hist_count: {hist['count']}\n"
+                                    )
+
+                                    _ = notify_telegram(
+                                        base64_str=self.frame_to_base64(frame_drawed),
+                                        caption=caption,
+                                        email=self.email
+                                    )
+                                    # Reset history for this zone
+                                    self.zone_history[zone_id] = {"frames": [], "count": 0}
+                                    return ParkingStatus.OCCUPIED.value
+                                else:
+                                    # Not stationary, reset and wait for next detection
+                                    self.zone_history[zone_id] = {"frames": [], "count": 0}
+                                    return ParkingStatus.AVAILABLE.value
                         else:
-                            print(f"Failed to send notification.: {response}")
-                        return ParkingStatus.OCCUPIED.value
+                            return ParkingStatus.AVAILABLE.value
+                    
+            for zone_id in self.zone_history:
+                self.zone_history[zone_id] = {"frames": [], "count": 0}
             return ParkingStatus.AVAILABLE.value
 
         except Exception as e:
