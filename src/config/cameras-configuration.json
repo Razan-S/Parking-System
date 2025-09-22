@@ -1,46 +1,5 @@
 {
-  "cameras": [
-    {
-      "camera_name": "New Camera 1",
-      "location": "",
-      "ip_address": "",
-      "port": 8080,
-      "username": "ProjectAI",
-      "password": "AP_3ond*sid",
-      "video_source": "rtsp://service:Pspd$24140@192.168.60.9:11554/cam/realmonitor?channel=8&subtype=1",
-      "camera_id": "CAM_001",
-      "camera_status": "working",
-      "parking_status": "available",
-      "image_path": "image\\latest\\CAM_001.jpg",
-      "detection_zones": [
-        {
-          "zone_id": "zone_002",
-          "zone_name": "Detection Zone 2",
-          "polygon_points": [
-            {
-              "x": 469,
-              "y": 51
-            },
-            {
-              "x": 515,
-              "y": 53
-            },
-            {
-              "x": 454,
-              "y": 571
-            },
-            {
-              "x": 177,
-              "y": 557
-            }
-          ]
-        }
-      ],
-      "last_maintenance": null,
-      "installation_date": "2025-09-13T21:16:13.602544",
-      "last_updated": "2025-09-13T22:16:52.533562Z"
-    }
-  ],
+  "cameras": [],
   "system_settings": {
     "default_detection_confidence": 0.7,
     "alert_cooldown_minutes": 5,
@@ -50,6 +9,6 @@
     "timezone": "Asia/Bangkok",
     "language": "en"
   },
-  "last_updated": "2025-09-14T19:25:04.043948Z",
+  "last_updated": "2025-09-21T23:02:14.722272Z",
   "config_version": "1.0.0"
 }
